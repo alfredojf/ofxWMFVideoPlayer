@@ -241,7 +241,7 @@ HRESULT CPlayer::OpenMultipleURL(vector<const WCHAR *> &urls)
 
 		const WCHAR* sURL = urls[i];
 		// Create the media source.
-		hr = CreateMediaSource(sURL, &source);
+		hr = ::CreateMediaSource(sURL, &source);
 		if (FAILED(hr))
 		{
 			goto done;
@@ -351,7 +351,7 @@ HRESULT CPlayer::OpenURL(const WCHAR *sURL)
 
 
     // Create the media source.
-    hr = CreateMediaSource(sURL, &m_pSource);
+    hr = ::CreateMediaSource(sURL, &m_pSource);
     if (FAILED(hr))
     {
         goto done;
