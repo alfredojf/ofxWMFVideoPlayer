@@ -19,6 +19,11 @@ void testApp::update(){
 //--------------------------------------------------------------
 void testApp::draw(){
 	video.draw(0,0);
+
+    ofSetHexColor(0xffffff);
+	ofDrawBitmapString("framerate: " + ofToString(ofGetFrameRate(), 2), 20, 20);
+
+
 }
 
 //--------------------------------------------------------------

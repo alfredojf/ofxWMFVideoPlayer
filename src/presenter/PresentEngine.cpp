@@ -46,7 +46,9 @@ D3DPresentEngine::D3DPresentEngine(HRESULT& hr) :
 
 {
     hasNVidiaExtensions = (wglewIsSupported("WGL_NV_DX_interop") == GL_TRUE);
+#ifdef NO_NV_EXTENSIONS
     hasNVidiaExtensions = false;
+#endif
     SetRectEmpty(&m_rcDestRect);
 
     ZeroMemory(&m_DisplayMode, sizeof(m_DisplayMode));
@@ -203,17 +205,6 @@ bool D3DPresentEngine::unlockSharedTexture()
     return true;
 }
 
-unsigned char* D3DPresentEngine::getPixels()
-{
-    std::lock_guard<std::mutex> guard(m_mutex);
-
-    if(m_hasNewFrame)
-    {
-        std::swap(m_frontBuffer, m_backBuffer);
-        m_hasNewFrame = false;
-    }
-    return m_frontBuffer;
-}
 
 
 
@@ -771,7 +762,6 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
 
     pSwapChain->GetBackBuffer(0,D3DBACKBUFFER_TYPE_MONO,&surface);
 
-#if 1
     if(!hasNVidiaExtensions)
     {
         D3DSURFACE_DESC rtDesc;
@@ -815,6 +805,7 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
                         buf[i] = pbScanline[i + 2];
                         buf[i + 1] = pbScanline[i + 1];
                         buf[i + 2] = pbScanline[i];
+                        buf[i + 3] = pbScanline[i + 3];
                     }
                     pbScanline += lr.Pitch;
                     buf += numBytes;
@@ -831,8 +822,6 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
             ok = false;
         }
     }  
-#endif // 0
-
 
     if (m_hwnd == NULL)
     {
@@ -845,6 +834,19 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
 
 
     return hr;
+}
+
+
+unsigned char* D3DPresentEngine::getPixels()
+{
+    std::lock_guard<std::mutex> guard(m_mutex);
+
+    if(m_hasNewFrame)
+    {
+        std::swap(m_frontBuffer, m_backBuffer);
+        m_hasNewFrame = false;
+    }
+    return m_frontBuffer;
 }
 
 //-----------------------------------------------------------------------------

@@ -41,13 +41,17 @@ ofxWMFVideoPlayer::ofxWMFVideoPlayer()
 		if (!ofIsGLProgrammableRenderer()){
 
             hasNVidiaExtensions = (wglewIsSupported("WGL_NV_DX_interop") == GL_TRUE);
+
+#ifdef NO_NV_EXTENSIONS
+            hasNVidiaExtensions = false;
+#endif
+
 			if(hasNVidiaExtensions){
 				ofLogVerbose("ofxWMFVideoPlayer") << "WGL_NV_DX_interop supported";
 			}else{
 				ofLogError("ofxWMFVideoPlayer") << "WGL_NV_DX_interop not supported. Using CPU copy to OpenGL texture.";
 			}
 		}
-        hasNVidiaExtensions = false;
 
 		HRESULT hr = MFStartup(MF_VERSION);
 	    if (!SUCCEEDED(hr))
