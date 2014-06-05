@@ -39,6 +39,7 @@ D3DPresentEngine::D3DPresentEngine(HRESULT& hr) :
 	gl_handleD3D(NULL),
 	d3d_texture(NULL),
 	d3d_surface(NULL),
+    m_offscreenSurface(NULL),
     hasNVidiaExtensions(false),
     m_backBuffer(NULL),
     m_frontBuffer(NULL),
@@ -174,7 +175,8 @@ void D3DPresentEngine::releaseSharedTexture()
 	//glDeleteTextures(1, &gl_name);
 	SAFE_RELEASE(d3d_surface);
 	SAFE_RELEASE(d3d_texture);
-
+	SAFE_RELEASE(m_offscreenSurface);
+    
     delete [] m_backBuffer;
     delete [] m_frontBuffer;
 
@@ -771,13 +773,14 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
         D3DSURFACE_DESC rtDesc;
         pSurface->GetDesc( &rtDesc );
 
+        if(!m_offscreenSurface)
+        {
+            hr = m_pDevice->CreateOffscreenPlainSurface( rtDesc.Width, rtDesc.Height, rtDesc.Format, D3DPOOL_SYSTEMMEM, &m_offscreenSurface, NULL );
+            if( FAILED(hr) )
+                return hr;
+        }
 
-        IDirect3DSurface9* offscreenSurface;
-        hr = m_pDevice->CreateOffscreenPlainSurface( rtDesc.Width, rtDesc.Height, rtDesc.Format, D3DPOOL_SYSTEMMEM, &offscreenSurface, NULL );
-        if( FAILED(hr) )
-            return hr;
-
-        hr = m_pDevice->GetRenderTargetData( surface, offscreenSurface );
+        hr = m_pDevice->GetRenderTargetData( surface, m_offscreenSurface );
         bool ok = SUCCEEDED(hr);
         if( ok )
         {
@@ -789,7 +792,7 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
             rect.top = 0;
             rect.bottom = rtDesc.Height;
             // Lock the surface to read pixels
-            hr = offscreenSurface->LockRect( &lr, &rect, D3DLOCK_READONLY );
+            hr = m_offscreenSurface->LockRect( &lr, &rect, D3DLOCK_READONLY );
             if( SUCCEEDED(hr) )
             {
                 std::lock_guard<std::mutex> guard(m_mutex);
@@ -818,8 +821,7 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
             }
 
             // Read the data here!
-            offscreenSurface->UnlockRect();
-            SAFE_RELEASE(offscreenSurface);
+            m_offscreenSurface->UnlockRect();
             m_hasNewFrame = true;
         }
         else

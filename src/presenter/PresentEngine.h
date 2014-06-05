@@ -124,6 +124,7 @@ protected:
 	DWORD _shared_handle_val;
 	IDirect3DSurface9 *d3d_surface;
 	IDirect3DTexture9 *d3d_texture;
+    IDirect3DSurface9* m_offscreenSurface;
 
 	int _w,_h;
     bool    hasNVidiaExtensions;
