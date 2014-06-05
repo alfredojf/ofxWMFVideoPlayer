@@ -1,5 +1,7 @@
 //ofxWMFVideoPlayer addon written by Philippe Laulheret for Second Story (secondstory.com)
 //MIT Licensing
+// Portions Copyright (c) Microsoft Open Technologies, Inc. 
+
 
 
 #include "ofxWMFVideoPlayerUtils.h"
