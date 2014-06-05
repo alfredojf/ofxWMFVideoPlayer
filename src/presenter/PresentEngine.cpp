@@ -120,7 +120,6 @@ bool D3DPresentEngine::createSharedTexture(int w, int h, int textureID)
     else
     {
         hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,NULL);
-        //hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,&sharedHandle);
     }
 
 	if (FAILED(hr))
