@@ -117,7 +117,8 @@ bool D3DPresentEngine::createSharedTexture(int w, int h, int textureID)
     }
     else
     {
-        hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_DYNAMIC,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,NULL);
+        hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,NULL);
+        //hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,&sharedHandle);
     }
 
 	if (FAILED(hr))
@@ -176,6 +177,9 @@ void D3DPresentEngine::releaseSharedTexture()
 
     delete [] m_backBuffer;
     delete [] m_frontBuffer;
+
+    m_backBuffer = NULL;
+    m_frontBuffer = NULL;
 }
 
 bool D3DPresentEngine::lockSharedTexture()
@@ -802,10 +806,11 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
                     for (unsigned int i = 0; i < numBytes; i += 4)
                     {
                         // swizzle the R and B values (BGR to RGB)
+
                         buf[i] = pbScanline[i + 2];
                         buf[i + 1] = pbScanline[i + 1];
-                        buf[i + 2] = pbScanline[i];
-                        buf[i + 3] = pbScanline[i + 3];
+                        buf[i + 2] = pbScanline[i];  
+                        buf[i + 3] = 255;  
                     }
                     pbScanline += lr.Pitch;
                     buf += numBytes;
