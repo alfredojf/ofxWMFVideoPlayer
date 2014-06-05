@@ -43,6 +43,8 @@ const DWORD PRESENTER_BUFFER_COUNT = 3;
 #pragma comment(lib,"D3d9.lib")
 #pragma comment(lib,"Dxva2.lib")
 
+class ofTexture;
+
 class D3DPresentEngine : public SchedulerCallback
 {
 public:
@@ -114,16 +116,16 @@ protected:
 protected:
 	HANDLE gl_handleD3D;
 	HANDLE d3d_shared_handle;
-	
+	ofTexture* m_ofTexture;
 	GLuint gl_name;
 	HANDLE gl_handle;
 
 	DWORD _shared_handle_val;
-	IDirect3DSurface9 *d3d_shared_surface;
-	IDirect3DTexture9 *d3d_shared_texture;
+	IDirect3DSurface9 *d3d_surface;
+	IDirect3DTexture9 *d3d_texture;
 
 	int _w,_h;
-
+    bool    hasNVidiaExtensions;
 public:
 
 	HANDLE getSharedDeviceHandle() { return gl_handleD3D;}
@@ -137,6 +139,7 @@ public:
 
 	void releaseSharedTexture();
 	bool lockSharedTexture();
+    void setOFTexture(ofTexture* pTexture) {m_ofTexture = pTexture;};
 
 	bool unlockSharedTexture();
 };

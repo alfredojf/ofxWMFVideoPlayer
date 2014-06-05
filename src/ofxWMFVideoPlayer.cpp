@@ -32,25 +32,28 @@ ofxWMFVideoPlayer* findPlayers(HWND hwnd)
 int  ofxWMFVideoPlayer::_instanceCount=0;
 
 
-ofxWMFVideoPlayer::ofxWMFVideoPlayer() : _player(NULL)
+ofxWMFVideoPlayer::ofxWMFVideoPlayer() 
+    : _player(NULL)
+    , hasNVidiaExtensions(false)
 {
 	
 	if (_instanceCount ==0)  {
 		if (!ofIsGLProgrammableRenderer()){
-			if(wglewIsSupported("WGL_NV_DX_interop")){
+
+            hasNVidiaExtensions = (wglewIsSupported("WGL_NV_DX_interop") == GL_TRUE);
+			if(hasNVidiaExtensions){
 				ofLogVerbose("ofxWMFVideoPlayer") << "WGL_NV_DX_interop supported";
 			}else{
-				ofLogError("ofxWMFVideoPlayer") << "WGL_NV_DX_interop not supported. Upgrade your graphc drivers and try again.";
-				return;
+				ofLogError("ofxWMFVideoPlayer") << "WGL_NV_DX_interop not supported. Using CPU copy to OpenGL texture.";
 			}
 		}
 
 
 		HRESULT hr = MFStartup(MF_VERSION);
-	  if (!SUCCEEDED(hr))
-    {
-		ofLog(OF_LOG_ERROR, "ofxWMFVideoPlayer: Error while loading MF");
-    }
+	    if (!SUCCEEDED(hr))
+        {
+		    ofLog(OF_LOG_ERROR, "ofxWMFVideoPlayer: Error while loading MF");
+        }
 	}
 
 	_id = _instanceCount;
@@ -60,8 +63,6 @@ ofxWMFVideoPlayer::ofxWMFVideoPlayer() : _player(NULL)
 
 	_waitForLoadedToPlay = false;
 	_sharedTextureCreated = false;
-	
-	
 }
 	 
 	 
@@ -90,10 +91,6 @@ void ofxWMFVideoPlayer::forceExit()
 		cout << "Shutting down MF some ofxWMFVideoPlayer remains" << endl;
 		MFShutdown();
 	}
-		
-
-		
-	
 }
 
  bool	ofxWMFVideoPlayer::	loadMovie(string name) 
@@ -118,12 +115,7 @@ void ofxWMFVideoPlayer::forceExit()
 		std::copy(s.begin(), s.end(), w.begin());
 
 		
-	hr = _player->OpenURL( w.c_str());
-
-	
-	 
-
-
+    hr = _player->OpenURL( w.c_str());
 	
 	 if (!_sharedTextureCreated)
 	 {
@@ -134,6 +126,7 @@ void ofxWMFVideoPlayer::forceExit()
 		 _tex.allocate(_width,_height,GL_RGBA,true);
 
 		_player->m_pEVRPresenter->createSharedTexture(_width, _height,_tex.texData.textureID);
+		_player->m_pEVRPresenter->setOFTexture(&_tex);
 		_sharedTextureCreated = true;
 	 }
 	 else 
@@ -334,7 +327,6 @@ BOOL ofxWMFVideoPlayer::InitInstance()
     {
        // return FALSE;
     }
-
 
     // Create the application window.
     hwnd = CreateWindow(szWindowClass, L"", WS_OVERLAPPEDWINDOW,

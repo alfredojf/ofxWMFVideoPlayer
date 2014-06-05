@@ -68,6 +68,8 @@ enum FRAMESTEP_STATE
 //  Description: Implements the custom presenter.
 //-----------------------------------------------------------------------------
 
+class ofTexture;
+
 class EVRCustomPresenter : 
     BaseObject,  
     RefCountedObject, 
@@ -255,11 +257,12 @@ protected:
     IMFTransform                *m_pMixer;               // The mixer.
     IMediaEventSink             *m_pMediaEventSink;      // The EVR's event-sink interface.
     IMFMediaType                *m_pMediaType;           // Output media type
-
+    ofTexture                   *m_pOFTexture;           // pointer to OFTexture if NVidia extensions not supported
 
 public:
 	HANDLE getSharedDeviceHandle();
 	bool createSharedTexture(int w, int h, int textureID) { return m_pD3DPresentEngine->createSharedTexture(w,h, textureID ); }
+    void setOFTexture(ofTexture* pTexture) {m_pD3DPresentEngine->setOFTexture(pTexture);};
 	bool lockSharedTexture() { return m_pD3DPresentEngine->lockSharedTexture(); }
 	bool unlockSharedTexture() { return m_pD3DPresentEngine->unlockSharedTexture(); }
 	void releaseSharedTexture() { return m_pD3DPresentEngine->releaseSharedTexture(); } ;

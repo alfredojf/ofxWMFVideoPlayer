@@ -9,7 +9,7 @@
 #include "ofMain.h"
 #include "ofxWMFVideoPlayerUtils.h"
 
-#include "EVRPresenter.h"
+//#include "EVRPresenter.h"
 
 
 
@@ -22,6 +22,7 @@ class ofxWMFVideoPlayer {
 	private:
 		static int  _instanceCount;
 		
+        bool hasNVidiaExtensions;
 		
 		HWND		_hwndPlayer;
 		

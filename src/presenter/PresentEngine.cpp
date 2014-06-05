@@ -19,7 +19,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "EVRPresenter.h"
-
+#include "ofTexture.h"
 
 
 HRESULT FindAdapter(IDirect3D9 *pD3D9, HMONITOR hMonitor, UINT *puAdapterID);
@@ -37,9 +37,13 @@ D3DPresentEngine::D3DPresentEngine(HRESULT& hr) :
     m_pDeviceManager(NULL),
     m_pSurfaceRepaint(NULL),
 	gl_handleD3D(NULL),
-	d3d_shared_texture(NULL),
-	d3d_shared_surface(NULL)
+	d3d_texture(NULL),
+	d3d_surface(NULL),
+    m_ofTexture(NULL),
+    hasNVidiaExtensions(false)
 {
+    hasNVidiaExtensions = (wglewIsSupported("WGL_NV_DX_interop") == GL_TRUE);
+    //hasNVidiaExtensions = false;
     SetRectEmpty(&m_rcDestRect);
 
     ZeroMemory(&m_DisplayMode, sizeof(m_DisplayMode));
@@ -59,10 +63,9 @@ D3DPresentEngine::D3DPresentEngine(HRESULT& hr) :
 
 D3DPresentEngine::~D3DPresentEngine()
 {
-	if (gl_handleD3D) {
+    releaseSharedTexture();
 
-		releaseSharedTexture() ;
-
+	if (hasNVidiaExtensions && gl_handleD3D) {
 		printf("WMFVideoPlayer : Killing present engine.....");
 		if (wglDXCloseDeviceNV(gl_handleD3D)) 
 		{
@@ -70,6 +73,7 @@ D3DPresentEngine::~D3DPresentEngine()
 		}
 		else printf("FAILED closing handle\n");
 	}
+
     SAFE_RELEASE(m_pDevice);
     SAFE_RELEASE(m_pSurfaceRepaint);
     SAFE_RELEASE(m_pDeviceManager);
@@ -83,24 +87,33 @@ D3DPresentEngine::~D3DPresentEngine()
 
 bool D3DPresentEngine::createSharedTexture(int w, int h, int textureID)
 {
-
+    HRESULT hr = S_OK;
 	_w = w;
 	_h = h;
-	if (gl_handleD3D == NULL ) 	gl_handleD3D = wglDXOpenDeviceNV(m_pDevice);
 
-	if (!gl_handleD3D)
-	{
-		printf("ofxWMFVideoplayer : openning the shared device failed\nCreate SharedTexture Failed");
-		return false;
+    if(hasNVidiaExtensions)
+    {
+	    if (gl_handleD3D == NULL ) 	gl_handleD3D = wglDXOpenDeviceNV(m_pDevice);
 
-	}
+	    if (!gl_handleD3D)
+	    {
+		    printf("ofxWMFVideoplayer : openning the shared device failed\nCreate SharedTexture Failed");
+		    return false;
 
-	gl_name=textureID;
+	    }
+	    gl_name=textureID;
+    }
 
 	HANDLE sharedHandle = NULL; //We need to create a shared handle for the ressource, otherwise the extension fails on ATI/Intel cards
 	
-	
-	HRESULT hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_shared_texture,&sharedHandle);
+	if(hasNVidiaExtensions)
+    {
+        hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,&sharedHandle);
+    }
+    else
+    {
+        hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_DYNAMIC,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,NULL);
+    }
 
 	if (FAILED(hr))
 	{
@@ -108,55 +121,69 @@ bool D3DPresentEngine::createSharedTexture(int w, int h, int textureID)
 		return false;
 	}
 
-	if (!sharedHandle)
+	if (hasNVidiaExtensions && !sharedHandle)
 	{
 		printf("ofxWMFVideoplayer : Error creating D3D sahred handle\n");
 		return false;
 	}
 	
-	wglDXSetResourceShareHandleNV(d3d_shared_texture,sharedHandle);
+    if(hasNVidiaExtensions)
+    {
+	    wglDXSetResourceShareHandleNV(d3d_texture,sharedHandle);
+    }
 
-	d3d_shared_texture->GetSurfaceLevel(0,&d3d_shared_surface);
+	d3d_texture->GetSurfaceLevel(0,&d3d_surface);
 		
-	gl_handle = wglDXRegisterObjectNV(gl_handleD3D, d3d_shared_texture,
-		gl_name,
-		GL_TEXTURE_RECTANGLE,
-		WGL_ACCESS_READ_ONLY_NV);
+    if(hasNVidiaExtensions)
+    {
+	    gl_handle = wglDXRegisterObjectNV(gl_handleD3D, d3d_texture,
+		    gl_name,
+		    GL_TEXTURE_RECTANGLE,
+		    WGL_ACCESS_READ_ONLY_NV);
 
-	
 
-	
-
-	if (!gl_handle) 
-	{
-		printf("ofxWMFVideoplayer : openning the shared texture failed\nCreate SharedTexture Failed");
-		return false;
-	}
+	    if (!gl_handle) 
+	    {
+		    printf("ofxWMFVideoplayer : openning the shared texture failed\nCreate SharedTexture Failed");
+		    return false;
+	    }
+    }
 	return true;
 }
 
 void D3DPresentEngine::releaseSharedTexture()
 {
-	if (!gl_handleD3D) return;
-	wglDXUnlockObjectsNV(gl_handleD3D, 1, &gl_handle);
-	wglDXUnregisterObjectNV(gl_handleD3D,gl_handle);
-	//glDeleteTextures(1, &gl_name);
-	SAFE_RELEASE(d3d_shared_surface);
-	SAFE_RELEASE(d3d_shared_texture);
+	if (hasNVidiaExtensions && gl_handleD3D)
+    {
+	    wglDXUnlockObjectsNV(gl_handleD3D, 1, &gl_handle);
+	    wglDXUnregisterObjectNV(gl_handleD3D,gl_handle);
+    }
 
+	//glDeleteTextures(1, &gl_name);
+	SAFE_RELEASE(d3d_surface);
+	SAFE_RELEASE(d3d_texture);
 }
+
 bool D3DPresentEngine::lockSharedTexture()
 {
-	if (!gl_handleD3D) return false;
-	if (!gl_handle) return false;
-	return wglDXLockObjectsNV(gl_handleD3D, 1, &gl_handle);
+    if (hasNVidiaExtensions)
+    {
+	    if (!gl_handleD3D) return false;
+	    if (!gl_handle) return false;
+	    return wglDXLockObjectsNV(gl_handleD3D, 1, &gl_handle);
+    }
+    return true;
 }
 
 bool D3DPresentEngine::unlockSharedTexture()
 {
-	if (!gl_handleD3D) return false;
-	if (!gl_handle) return false;
-	return wglDXUnlockObjectsNV(gl_handleD3D, 1, &gl_handle);
+    if (hasNVidiaExtensions)
+    {
+	    if (!gl_handleD3D) return false;
+	    if (!gl_handle) return false;
+	    return wglDXUnlockObjectsNV(gl_handleD3D, 1, &gl_handle);
+    }
+    return true;
 }
 
 
@@ -475,11 +502,13 @@ HRESULT D3DPresentEngine::PresentSample(IMFSample* pSample, LONGLONG llTarget)
 
     if (pSurface)
     {
+
         // Get the swap chain from the surface.
         CHECK_HR(hr = pSurface->GetContainer(__uuidof(IDirect3DSwapChain9), (LPVOID*)&pSwapChain));
 
         // Present the swap chain.
         CHECK_HR(hr = PresentSwapChain(pSwapChain, pSurface));
+
 
         // Store this pointer in case we need to repaint the surface.
         CopyComPointer(m_pSurfaceRepaint, pSurface);
@@ -699,14 +728,30 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
     HRESULT hr = S_OK;
 
 
-	//pSwapChain->GetFrontBufferData(d3d_shared_surface);
+	//pSwapChain->GetFrontBufferData(d3d_surface);
 	IDirect3DSurface9 *surface;
 	pSwapChain->GetBackBuffer(0,D3DBACKBUFFER_TYPE_MONO,&surface);
-    if (m_pDevice->StretchRect(surface,NULL,d3d_shared_surface,NULL,D3DTEXF_NONE) != D3D_OK)
+
+    hr = m_pDevice->StretchRect(surface,NULL,d3d_surface,NULL,D3DTEXF_NONE);
+    if (hr != D3D_OK)
 	{
 		printf("ofxWMFVideoPlayer: Error while copying texture to gl context \n");
 	}
-	SAFE_RELEASE(surface);
+
+	IDirect3DSurface9 *surface2;
+    pSwapChain->GetBackBuffer(0,D3DBACKBUFFER_TYPE_MONO,&surface);
+
+#if 1
+    //if(!hasNVidiaExtensions && m_ofTexture)
+    {
+        D3DLOCKED_RECT lockedRect;
+        hr = d3d_surface->LockRect(&lockedRect,NULL,0);
+        m_ofTexture->loadData((unsigned char*)lockedRect.pBits, _w, _h, GL_RGB);
+        d3d_surface->UnlockRect();  
+        SAFE_RELEASE(surface);
+    }  
+#endif // 0
+
 
     if (m_hwnd == NULL)
     {
@@ -715,7 +760,8 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
 	
     hr = pSwapChain->Present(NULL, &m_rcDestRect, m_hwnd, NULL, 0);
 
-	
+
+
 
     LOG_MSG_IF_FAILED(L"D3DPresentEngine::PresentSwapChain, IDirect3DSwapChain9::Present failed.", hr);
 
