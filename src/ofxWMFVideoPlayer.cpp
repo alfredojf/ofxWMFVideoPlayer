@@ -49,7 +49,7 @@ ofxWMFVideoPlayer::ofxWMFVideoPlayer()
 			if(hasNVidiaExtensions){
 				ofLogVerbose("ofxWMFVideoPlayer") << "WGL_NV_DX_interop supported";
 			}else{
-				ofLogError("ofxWMFVideoPlayer") << "WGL_NV_DX_interop not supported. Using CPU copy to OpenGL texture.";
+				ofLogWarning("ofxWMFVideoPlayer") << "WGL_NV_DX_interop not supported. Using CPU copy to OpenGL texture.";
 			}
 		}
 
