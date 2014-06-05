@@ -19,8 +19,8 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "EVRPresenter.h"
-#include "ofTexture.h"
-
+#include "ofPixels.h"
+#include <algorithm>
 
 HRESULT FindAdapter(IDirect3D9 *pD3D9, HMONITOR hMonitor, UINT *puAdapterID);
 
@@ -39,11 +39,14 @@ D3DPresentEngine::D3DPresentEngine(HRESULT& hr) :
 	gl_handleD3D(NULL),
 	d3d_texture(NULL),
 	d3d_surface(NULL),
-    m_ofTexture(NULL),
-    hasNVidiaExtensions(false)
+    hasNVidiaExtensions(false),
+    m_backBuffer(NULL),
+    m_frontBuffer(NULL),
+    m_hasNewFrame(false)
+
 {
     hasNVidiaExtensions = (wglewIsSupported("WGL_NV_DX_interop") == GL_TRUE);
-    //hasNVidiaExtensions = false;
+    hasNVidiaExtensions = false;
     SetRectEmpty(&m_rcDestRect);
 
     ZeroMemory(&m_DisplayMode, sizeof(m_DisplayMode));
@@ -148,6 +151,12 @@ bool D3DPresentEngine::createSharedTexture(int w, int h, int textureID)
 		    return false;
 	    }
     }
+    else
+    {
+        m_backBuffer = new unsigned char[w * h * 4];
+        m_frontBuffer = new unsigned char[w * h * 4];
+        m_hasNewFrame = false;
+    }
 	return true;
 }
 
@@ -162,6 +171,9 @@ void D3DPresentEngine::releaseSharedTexture()
 	//glDeleteTextures(1, &gl_name);
 	SAFE_RELEASE(d3d_surface);
 	SAFE_RELEASE(d3d_texture);
+
+    delete [] m_backBuffer;
+    delete [] m_frontBuffer;
 }
 
 bool D3DPresentEngine::lockSharedTexture()
@@ -172,6 +184,11 @@ bool D3DPresentEngine::lockSharedTexture()
 	    if (!gl_handle) return false;
 	    return wglDXLockObjectsNV(gl_handleD3D, 1, &gl_handle);
     }
+    else
+    {
+
+    }
+
     return true;
 }
 
@@ -185,6 +202,19 @@ bool D3DPresentEngine::unlockSharedTexture()
     }
     return true;
 }
+
+unsigned char* D3DPresentEngine::getPixels()
+{
+    std::lock_guard<std::mutex> guard(m_mutex);
+
+    if(m_hasNewFrame)
+    {
+        std::swap(m_frontBuffer, m_backBuffer);
+        m_hasNewFrame = false;
+    }
+    return m_frontBuffer;
+}
+
 
 
 
@@ -737,18 +767,69 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
 	{
 		printf("ofxWMFVideoPlayer: Error while copying texture to gl context \n");
 	}
+    hr = pSwapChain->Present(NULL, &m_rcDestRect, m_hwnd, NULL, 0);
 
-	IDirect3DSurface9 *surface2;
     pSwapChain->GetBackBuffer(0,D3DBACKBUFFER_TYPE_MONO,&surface);
 
 #if 1
-    //if(!hasNVidiaExtensions && m_ofTexture)
+    if(!hasNVidiaExtensions)
     {
-        D3DLOCKED_RECT lockedRect;
-        hr = d3d_surface->LockRect(&lockedRect,NULL,0);
-        m_ofTexture->loadData((unsigned char*)lockedRect.pBits, _w, _h, GL_RGB);
-        d3d_surface->UnlockRect();  
-        SAFE_RELEASE(surface);
+        D3DSURFACE_DESC rtDesc;
+        pSurface->GetDesc( &rtDesc );
+
+
+        IDirect3DSurface9* offscreenSurface;
+        hr = m_pDevice->CreateOffscreenPlainSurface( rtDesc.Width, rtDesc.Height, rtDesc.Format, D3DPOOL_SYSTEMMEM, &offscreenSurface, NULL );
+        if( FAILED(hr) )
+            return hr;
+
+        hr = m_pDevice->GetRenderTargetData( surface, offscreenSurface );
+        bool ok = SUCCEEDED(hr);
+        if( ok )
+        {
+            // Here we have data in offscreenSurface.
+            D3DLOCKED_RECT lr;
+            RECT rect;
+            rect.left = 0;
+            rect.right = rtDesc.Width;
+            rect.top = 0;
+            rect.bottom = rtDesc.Height;
+            // Lock the surface to read pixels
+            hr = offscreenSurface->LockRect( &lr, &rect, D3DLOCK_READONLY );
+            if( SUCCEEDED(hr) )
+            {
+                std::lock_guard<std::mutex> guard(m_mutex);
+                unsigned int numBytes = rtDesc.Width * 4;
+
+               // Pointer to data is lt.pBits, each row is
+                // lr.Pitch bytes apart (often it is the same as width*bpp, but
+                // can be larger if driver uses padding)
+
+                uint8_t* buf = m_backBuffer;
+                uint8_t* pbScanline = (uint8_t*)lr.pBits;
+                for (unsigned int row = 0; row < rtDesc.Height; row++)
+                {
+                    for (unsigned int i = 0; i < numBytes; i += 4)
+                    {
+                        // swizzle the R and B values (BGR to RGB)
+                        buf[i] = pbScanline[i + 2];
+                        buf[i + 1] = pbScanline[i + 1];
+                        buf[i + 2] = pbScanline[i];
+                    }
+                    pbScanline += lr.Pitch;
+                    buf += numBytes;
+                }
+            }
+
+            // Read the data here!
+            offscreenSurface->UnlockRect();
+            SAFE_RELEASE(offscreenSurface);
+            m_hasNewFrame = true;
+        }
+        else
+        {
+            ok = false;
+        }
     }  
 #endif // 0
 
@@ -758,9 +839,6 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
         return MF_E_INVALIDREQUEST;
     }
 	
-    hr = pSwapChain->Present(NULL, &m_rcDestRect, m_hwnd, NULL, 0);
-
-
 
 
     LOG_MSG_IF_FAILED(L"D3DPresentEngine::PresentSwapChain, IDirect3DSwapChain9::Present failed.", hr);

@@ -47,7 +47,7 @@ ofxWMFVideoPlayer::ofxWMFVideoPlayer()
 				ofLogError("ofxWMFVideoPlayer") << "WGL_NV_DX_interop not supported. Using CPU copy to OpenGL texture.";
 			}
 		}
-
+        hasNVidiaExtensions = false;
 
 		HRESULT hr = MFStartup(MF_VERSION);
 	    if (!SUCCEEDED(hr))
@@ -126,7 +126,6 @@ void ofxWMFVideoPlayer::forceExit()
 		 _tex.allocate(_width,_height,GL_RGBA,true);
 
 		_player->m_pEVRPresenter->createSharedTexture(_width, _height,_tex.texData.textureID);
-		_player->m_pEVRPresenter->setOFTexture(&_tex);
 		_sharedTextureCreated = true;
 	 }
 	 else 
@@ -155,12 +154,18 @@ void ofxWMFVideoPlayer::forceExit()
 
  void ofxWMFVideoPlayer::draw(int x, int y , int w, int h) {
 
-
-	 _player->m_pEVRPresenter->lockSharedTexture();
-	 _tex.draw(x,y,w,h);
-	  _player->m_pEVRPresenter->unlockSharedTexture();
-
-	 
+     if(hasNVidiaExtensions)
+     {
+	     _player->m_pEVRPresenter->lockSharedTexture();
+	     _tex.draw(x,y,w,h);
+	      _player->m_pEVRPresenter->unlockSharedTexture();
+     }
+     else
+     {
+        unsigned char* pixels = _player->m_pEVRPresenter->getPixels();
+        _tex.loadData(pixels, _player->getWidth(), _player->getHeight(),GL_RGBA);
+        _tex.draw(x,y,w,h);
+     }
 
  }
 
@@ -254,11 +259,8 @@ void ofxWMFVideoPlayer::OnPlayerEvent(HWND hwnd, WPARAM pUnkPtr)
  }
 
 
-
 LRESULT CALLBACK WndProcDummy(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-
-
     switch (message)
     {
 
