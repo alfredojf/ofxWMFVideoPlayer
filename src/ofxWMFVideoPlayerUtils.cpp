@@ -90,7 +90,7 @@ HRESULT CPlayer::Initialize()
 		hr = HRESULT_FROM_WIN32(GetLastError());
 	}
 
-	if (!m_pEVRPresenter)  {
+	if (!m_pEVRPresenter) {
 		m_pEVRPresenter = new EVRCustomPresenter(hr);
 		m_pEVRPresenter->SetVideoWindow(m_hwndVideo);
 	}
@@ -98,37 +98,20 @@ HRESULT CPlayer::Initialize()
 	return hr;
 }
 
-<<<<<<< HEAD
 CPlayer::CPlayer(HWND hVideo, HWND hEvent) :
-m_pSession(NULL),
-m_pSource(NULL),
-m_pVideoDisplay(NULL),
-m_hwndVideo(hVideo),
-m_hwndEvent(hEvent),
-m_state(Closed),
-m_hCloseEvent(NULL),
-m_nRefCount(1),
-m_pEVRPresenter(NULL),
-m_pSequencerSource(NULL),
-m_pVolumeControl(NULL),
-_previousTopoID(0),
-_isLooping(false)
-=======
-CPlayer::CPlayer(HWND hVideo, HWND hEvent) : 
-    m_pSession(NULL),
-    m_pSource(NULL),
-    m_pVideoDisplay(NULL),
-    m_hwndVideo(hVideo),
-    m_hwndEvent(hEvent),
-    m_state(Closed),
-    m_hCloseEvent(NULL),
-    m_nRefCount(1),
+	m_pSession(NULL),
+	m_pSource(NULL),
+	m_pVideoDisplay(NULL),
+	m_hwndVideo(hVideo),
+	m_hwndEvent(hEvent),
+	m_state(Closed),
+	m_hCloseEvent(NULL),
+	m_nRefCount(1),
 	m_pEVRPresenter(NULL),
 	m_pSequencerSource(NULL),
 	m_pVolumeControl(NULL),
 	_previousTopoID(0),
 	_isLooping(false)
->>>>>>> secondstory/master
 {
 
 }
@@ -400,11 +383,7 @@ HRESULT CPlayer::OpenURL(const WCHAR *sURL)
 		goto done;
 	}
 
-<<<<<<< HEAD
 	m_state = OpenPending;
-=======
-    m_state = OpenPending;
->>>>>>> secondstory/master
 	_currentVolume = 1.0f;
 
 	// If SetTopology succeeds, the media session will queue an 
@@ -475,7 +454,7 @@ HRESULT CPlayer::setPosition(float pos)
 		m_pSession->Pause();
 		m_state = Paused;*/
 
-	//Create variant for seeking information
+		//Create variant for seeking information
 	PROPVARIANT varStart;
 	PropVariantInit(&varStart);
 	varStart.vt = VT_I8;
@@ -844,7 +823,6 @@ done:
 //  Close the media session. 
 HRESULT CPlayer::CloseSession()
 {
-<<<<<<< HEAD
 	//  The IMFMediaSession::Close method is asynchronous, but the 
 	//  CPlayer::CloseSession method waits on the MESessionClosed event.
 	//  
@@ -896,59 +874,6 @@ HRESULT CPlayer::CloseSession()
 	SafeRelease(&m_pSession);
 	m_state = Closed;
 	return hr;
-=======
-    //  The IMFMediaSession::Close method is asynchronous, but the 
-    //  CPlayer::CloseSession method waits on the MESessionClosed event.
-    //  
-    //  MESessionClosed is guaranteed to be the last event that the 
-    //  media session fires.
-
-    HRESULT hr = S_OK;
-	
-
-    if (m_pVideoDisplay != NULL ) SafeRelease(&m_pVideoDisplay);
-	if (m_pVolumeControl != NULL) SafeRelease(&m_pVolumeControl);
-
-    // First close the media session.
-    if (m_pSession)
-    {
-        DWORD dwWaitResult = 0;
-
-        m_state = Closing;
-           
-        hr = m_pSession->Close();
-        // Wait for the close operation to complete
-        if (SUCCEEDED(hr))
-        {
-            dwWaitResult = WaitForSingleObject(m_hCloseEvent, 5000);
-            if (dwWaitResult == WAIT_TIMEOUT)
-            {
-                assert(FALSE);
-            }
-            // Now there will be no more events from this session.
-        }
-    }
-
-    // Complete shutdown operations.
-    if (SUCCEEDED(hr))
-    {
-        // Shut down the media source. (Synchronous operation, no events.)
-        if (m_pSource)
-        {
-            (void)m_pSource->Shutdown();
-        }
-        // Shut down the media session. (Synchronous operation, no events.)
-        if (m_pSession)
-        {
-            (void)m_pSession->Shutdown();
-        }
-    }
-
-    SafeRelease(&m_pSource);
-    SafeRelease(&m_pSession);
-    m_state = Closed;
-    return hr;
->>>>>>> secondstory/master
 }
 
 //  Start playback from the current position. 
@@ -1512,11 +1437,8 @@ float CPlayer::getFrameRate() {
 		if FAILED(pStreamHandler->GetMediaTypeHandler(&pMediaType)) goto done;
 		if FAILED(pMediaType->GetMajorType(&type)) goto done;
 		if FAILED(pMediaType->GetCurrentMediaType(&pType)) goto done;
-<<<<<<< HEAD
+
 		if (type == MFMediaType_Video)
-=======
-		if (type  == MFMediaType_Video)
->>>>>>> secondstory/master
 		{
 			UINT32 num = 0;
 			UINT32 denum = 1;
@@ -1527,15 +1449,9 @@ float CPlayer::getFrameRate() {
 				&num,
 				&denum
 				);
-<<<<<<< HEAD
+
 			if (denum != 0) fps = (float)num / (float)denum;
 		}
-
-=======
-			if (denum != 0) fps = (float) num /  (float) denum;
-		}
-	
->>>>>>> secondstory/master
 
 		SafeRelease(&pStreamHandler);
 		SafeRelease(&pMediaType);
@@ -1665,7 +1581,7 @@ float  CPlayer::GetPlaybackRate()
 	SAFE_RELEASE(pRateControl);
 	if (!FAILED(hr))
 		return rate;
-	else{
+	else {
 		cout << "Error: Could Not Get Rate" << endl;
 		return NULL;
 	}

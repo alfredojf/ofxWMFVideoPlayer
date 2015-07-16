@@ -64,13 +64,6 @@ ofxWMFVideoPlayer::ofxWMFVideoPlayer() : _player(NULL)
 	_wantToSetVolume = false;
 	_currentVolume = 1.0;
 	_frameRate = 0.0f;
-<<<<<<< HEAD
-
-
-=======
-	
-	
->>>>>>> secondstory/master
 }
 
 
@@ -130,11 +123,6 @@ bool	ofxWMFVideoPlayer::loadMovie(string name)
 
 	hr = _player->OpenURL(w.c_str());
 
-
-<<<<<<< HEAD
-=======
-	
->>>>>>> secondstory/master
 	_frameRate = 0.0; //reset frameRate as the new movie loaded might have a different value than previous one
 
 
@@ -163,23 +151,12 @@ bool	ofxWMFVideoPlayer::loadMovie(string name)
 			_tex.allocate(_width, _height, GL_RGBA, true);
 			_player->m_pEVRPresenter->createSharedTexture(_width, _height, _tex.texData.textureID);
 
-<<<<<<< HEAD
-		}
-=======
 		 }
 		 
 	 }
 	 _waitForLoadedToPlay = false;
 
 	 return false;
->>>>>>> secondstory/master
-
-	}
-	_waitForLoadedToPlay = false;
-
-	return false;
-
-
 }
 
 
@@ -211,17 +188,11 @@ bool  ofxWMFVideoPlayer::isPaused()
 
 
 
-<<<<<<< HEAD
-void	ofxWMFVideoPlayer::close() {
-	_player->Shutdown();
-	_currentVolume = 1.0;
-	_wantToSetVolume = false;
-=======
+
  void	ofxWMFVideoPlayer::	close() {
 	 _player->Shutdown();
 	 _currentVolume = 1.0;
 	 _wantToSetVolume = false;
->>>>>>> secondstory/master
 
 }
 void	ofxWMFVideoPlayer::update() {
@@ -342,11 +313,8 @@ void ofxWMFVideoPlayer::setPosition(float pos)
 
 void ofxWMFVideoPlayer::setVolume(float vol)
 {
-<<<<<<< HEAD
+
 	if ((_player) && (_player->GetState() != OpenPending) && (_player->GetState() != Closing) && (_player->GetState() != Closed))  {
-=======
-	if ((_player ) && (_player->GetState() != OpenPending) && (_player->GetState() != Closing) && (_player->GetState() != Closed))  {
->>>>>>> secondstory/master
 		_player->setVolume(vol);
 		_wantToSetVolume = false;
 	}
@@ -369,7 +337,6 @@ float ofxWMFVideoPlayer::getFrameRate()
 	return _frameRate;
 }
 
-<<<<<<< HEAD
 float ofxWMFVideoPlayer::getSpeed() {
 	return _player->GetPlaybackRate();
 }
@@ -413,8 +380,6 @@ bool ofxWMFVideoPlayer::setSpeed(float speed, bool useThinning) {
 	}
 }
 
-=======
->>>>>>> secondstory/master
 float	ofxWMFVideoPlayer::getHeight() { return _player->getHeight(); }
 float	ofxWMFVideoPlayer::getWidth() { return _player->getWidth(); }
 
