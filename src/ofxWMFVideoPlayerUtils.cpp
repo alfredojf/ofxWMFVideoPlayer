@@ -101,6 +101,7 @@ HRESULT CPlayer::Initialize()
 CPlayer::CPlayer(HWND hVideo, HWND hEvent) :
 	m_pSession(NULL),
 	m_pSource(NULL),
+	m_pSourceResolver(NULL),
 	m_pVideoDisplay(NULL),
 	m_hwndVideo(hVideo),
 	m_hwndEvent(hEvent),
@@ -175,7 +176,6 @@ ULONG CPlayer::Release()
 HRESULT CPlayer::OpenMultipleURL(vector<const WCHAR *> &urls)
 {
 
-
 	if (m_state == OpenPending) return S_FALSE;
 	IMFTopology *pTopology = NULL;
 	IMFPresentationDescriptor* pSourcePD = NULL;
@@ -186,10 +186,7 @@ HRESULT CPlayer::OpenMultipleURL(vector<const WCHAR *> &urls)
 	IMFPresentationDescriptor* spPD = NULL;
 	IMFMediaSourceTopologyProvider* spSrcTopoProvider = NULL;
 
-
-
 	HRESULT hr = S_OK;
-
 
 	if (_previousTopoID != 0)
 	{
@@ -201,24 +198,16 @@ HRESULT CPlayer::OpenMultipleURL(vector<const WCHAR *> &urls)
 
 	if (!m_pSequencerSource)
 	{
-		hr = MFCreateSequencerSource(NULL, &m_pSequencerSource);
-		if (FAILED(hr))	goto done;
+		CHECK_HR(hr = MFCreateSequencerSource(NULL, &m_pSequencerSource));
 
-		hr = CreateSession();
-		if (FAILED(hr))
-		{
-			goto done;
-		}
+		CHECK_HR(hr = CreateSession());
 
-		hr = m_pSequencerSource->QueryInterface(IID_PPV_ARGS(&m_pSource));
+		CHECK_HR(hr = m_pSequencerSource->QueryInterface(IID_PPV_ARGS(&m_pSource)));
 
 	}
 
-
 	int nUrl = urls.size();
 	int nPresenters = v_EVRPresenters.size();
-
-
 
 	for (int i = nPresenters; i < nUrl; i++)
 	{
@@ -226,9 +215,6 @@ HRESULT CPlayer::OpenMultipleURL(vector<const WCHAR *> &urls)
 		presenter->SetVideoWindow(m_hwndVideo);
 		v_EVRPresenters.push_back(presenter);
 	}
-
-
-
 
 	// Create the media session.
 
@@ -242,25 +228,16 @@ HRESULT CPlayer::OpenMultipleURL(vector<const WCHAR *> &urls)
 
 		const WCHAR* sURL = urls[i];
 		// Create the media source.
-		hr = CreateMediaSource(sURL, &source);
-		if (FAILED(hr))
-		{
-			goto done;
-		}
+		CHECK_HR(hr = CreateMediaSource(sURL, &source));
+
+		return hr;
+		//All the following code will never be reached...
 
 		// Create the presentation descriptor for the media source.
-		hr = source->CreatePresentationDescriptor(&pSourcePD);
-		if (FAILED(hr))
-		{
-			goto done;
-		}
+		CHECK_HR(hr = source->CreatePresentationDescriptor(&pSourcePD));
 
 		if (i == 0)  	hr = CreatePlaybackTopology(source, pSourcePD, m_hwndVideo, &pTopology, v_EVRPresenters[i]);
-		else hr = AddToPlaybackTopology(source, pSourcePD, m_hwndVideo, pTopology, v_EVRPresenters[i]);
-		if (FAILED(hr))
-		{
-			goto done;
-		}
+		else CHECK_HR(hr = AddToPlaybackTopology(source, pSourcePD, m_hwndVideo, pTopology, v_EVRPresenters[i]));
 
 
 		//v_sources.push_back(source);
@@ -274,35 +251,18 @@ HRESULT CPlayer::OpenMultipleURL(vector<const WCHAR *> &urls)
 
 
 	MFSequencerElementId NewID;
-
-
-
-	hr = m_pSequencerSource->AppendTopology(pTopology, SequencerTopologyFlags_Last, &NewID);
-
-
-
+	CHECK_HR(hr = m_pSequencerSource->AppendTopology(pTopology, SequencerTopologyFlags_Last, &NewID));
 	_previousTopoID = NewID;
-
-
-	hr = m_pSequencerSource->QueryInterface(IID_IMFMediaSource, (void**)&spSrc);
-
-
-	hr = spSrc->CreatePresentationDescriptor(&spPD);
-
-
-	hr = m_pSequencerSource->QueryInterface(IID_IMFMediaSourceTopologyProvider, (void**)&spSrcTopoProvider);
+	CHECK_HR(hr = m_pSequencerSource->QueryInterface(IID_IMFMediaSource, (void**)&spSrc));
+	CHECK_HR(hr = spSrc->CreatePresentationDescriptor(&spPD));
+	CHECK_HR(hr = m_pSequencerSource->QueryInterface(IID_IMFMediaSourceTopologyProvider, (void**)&spSrcTopoProvider));
 
 	SafeRelease(&pTopology);
-	hr = spSrcTopoProvider->GetMediaSourceTopology(spPD, &pTopology);
+	CHECK_HR(hr = spSrcTopoProvider->GetMediaSourceTopology(spPD, &pTopology));
 
 	//Now that we're done, we set the topolgy as it should be....
 
-	hr = m_pSession->SetTopology(0, pTopology);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
-
+	CHECK_HR(hr = m_pSession->SetTopology(0, pTopology));
 
 	m_state = OpenPending;
 	_currentVolume = 1.0f;
@@ -323,14 +283,49 @@ done:
 	return hr;
 }
 
-
-
-
 //  Open a URL for playback.
 HRESULT CPlayer::OpenURL(const WCHAR *sURL)
 {
 	// 1. Create a new media session.
 	// 2. Create the media source.
+	HRESULT hr = S_OK;
+	CHECK_HR(hr = CreateSession());
+
+	// Create the media source.
+	CHECK_HR(hr = CreateMediaSource(sURL, &m_pSource));
+
+	EndOpenURL();
+
+done:
+	if (FAILED(hr))
+		m_state = Closed;
+
+	return hr;
+}
+
+HRESULT CPlayer::OpenURLAsync(const WCHAR *sURL)
+{
+	// 1. Create a new media session.
+	// 2. Create the media source.
+
+	// Create the media session.
+	HRESULT hr = S_OK;
+	CHECK_HR(hr = CreateSession());
+
+	// Create the media source.
+	CHECK_HR(hr = BeginCreateMediaSource(sURL, this, &m_pSourceResolver));
+
+	/////MADE ASYNCHRONOUS
+	m_state = OpenAsyncPending;
+done:
+	if (FAILED(hr))
+		m_state = Closed;
+	return hr;
+}
+
+HRESULT CPlayer::EndOpenURL()
+{
+	HRESULT hr;
 	// 3. Create the topology.
 	// 4. Queue the topology [asynchronous]
 	// 5. Start playback [asynchronous - does not happen in this method.]
@@ -338,56 +333,24 @@ HRESULT CPlayer::OpenURL(const WCHAR *sURL)
 	IMFTopology *pTopology = NULL;
 	IMFPresentationDescriptor* pSourcePD = NULL;
 
-
-
-
-
-	// Create the media session.
-	HRESULT hr = CreateSession();
-	if (FAILED(hr))
-	{
-		goto done;
-	}
-
-
-
-
-	// Create the media source.
-	hr = CreateMediaSource(sURL, &m_pSource);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
-
 	// Create the presentation descriptor for the media source.
-	hr = m_pSource->CreatePresentationDescriptor(&pSourcePD);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = m_pSource->CreatePresentationDescriptor(&pSourcePD));
 
 	// Create a partial topology.
-	hr = CreatePlaybackTopology(m_pSource, pSourcePD, m_hwndVideo, &pTopology, m_pEVRPresenter);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = CreatePlaybackTopology(m_pSource, pSourcePD, m_hwndVideo, &pTopology, m_pEVRPresenter));
 
 	SetMediaInfo(pSourcePD);
 
 
 	// Set the topology on the media session.
-	hr = m_pSession->SetTopology(0, pTopology);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = m_pSession->SetTopology(0, pTopology));
 
 	m_state = OpenPending;
 	_currentVolume = 1.0f;
 
 	// If SetTopology succeeds, the media session will queue an 
 	// MESessionTopologySet event.
+	isDone = false;
 
 done:
 	if (FAILED(hr))
@@ -441,47 +404,35 @@ HRESULT CPlayer::Stop()
 	return hr;
 }
 
-
 HRESULT CPlayer::setPosition(float pos)
 {
 	if (m_state == OpenPending)
 	{
-		printf("ofxWMFPlayer : Error cannot seek during opening\n");
+		ofLogError("ofxWMFPlayer", "Error cannot seek during opening\n");
 		return S_FALSE;
 	}
 
-	/*	bool wasPlaying = (m_state == Started);
-		m_pSession->Pause();
-		m_state = Paused;*/
-
-		//Create variant for seeking information
+	//Create variant for seeking information
 	PROPVARIANT varStart;
+	PlayerState curState = m_state;
 	PropVariantInit(&varStart);
 	varStart.vt = VT_I8;
 	varStart.hVal.QuadPart = pos* 10000000.0; //i.e. seeking to pos // should be MFTIME and not float :(
-
 
 	HRESULT hr = m_pSession->Start(&GUID_NULL, &varStart);
 
 	if (SUCCEEDED(hr))
 	{
-
-		m_state = Started;
-
+		m_state = Started; //setting the rate automatically sets it to play
+		if (curState == Stopped) hr = Stop();
+		if (curState == Paused) Pause();
 	}
 	else
 	{
-		printf("ofxWMFPlayer : Error while seeking\n");
+		ofLogError("ofxWMFPlayer", "Error while seeking\n");
 		return S_FALSE;
 	}
-
-
-	/*if (!wasPlaying) m_pSession->Pause();
-	m_state = Paused;*/
-
 	PropVariantClear(&varStart);
-
-
 
 	return S_OK;
 }
@@ -498,7 +449,6 @@ HRESULT CPlayer::setVolume(float vol)
 	{
 
 		HRESULT hr = MFGetService(m_pSession, MR_STREAM_VOLUME_SERVICE, __uuidof(IMFAudioStreamVolume), (void**)&m_pVolumeControl);
-		//HRESULT hr = MFGetService(m_pSession, MR_POLICY_VOLUME_SERVICE, __uuidof(IMFSimpleAudioVolume), (void**)&m_pVolumeControl);
 		_currentVolume = vol;
 		if (FAILED(hr))
 		{
@@ -509,44 +459,57 @@ HRESULT CPlayer::setVolume(float vol)
 	}
 	UINT32 nChannels;
 	m_pVolumeControl->GetChannelCount(&nChannels);
-	//float * volumes= new float[nChannels];
 	for (int i = 0; i < nChannels; i++)
 	{
 		m_pVolumeControl->SetChannelVolume(i, vol);
 	}
-
-	//	m_pVolumeControl->SetAllVolumes(nChannels,vol);
-	//	delete[] volumes;
-
 	_currentVolume = vol;
 
 	return S_OK;
 }
-
-
-
-
 //  Callback for the asynchronous BeginGetEvent method.
 
 HRESULT CPlayer::Invoke(IMFAsyncResult *pResult)
 {
 	MediaEventType meType = MEUnknown;  // Event type
-
 	IMFMediaEvent *pEvent = NULL;
-	if (!m_pSession) return -1; //Sometimes Invoke is called but m_pSession is closed
-	// Get the event from the event queue.
-	HRESULT hr = m_pSession->EndGetEvent(pResult, &pEvent);
-	if (FAILED(hr))
-	{
-		goto done;
+
+	HRESULT hr;
+	if (!m_pSession) {
+		ofLogError("CPlayer::Invoke") << "Called with a null session";
+		return -1; //Sometimes Invoke is called but m_pSession is closed
 	}
+
+	// Get the event from the event queue.
+	if (m_state == OpenAsyncPending) {
+		if (!&m_pSourceResolver) {
+			ofLogError("CPlayer::Invoke") << "Async request returned with NULL session";
+			return -1;
+		}
+		MF_OBJECT_TYPE ObjectType = MF_OBJECT_INVALID;
+		IUnknown	  *pSourceUnk = NULL;
+		//CheckPointer(m_pSource, E_POINTER);
+
+		hr = m_pSourceResolver->EndCreateObjectFromURL(
+			pResult,					// Invoke result
+			&ObjectType,                // Receives the created object type. 
+			&pSourceUnk                  // Receives a pointer to the media source.
+			);
+
+		// Get the IMFMediaSource interface from the media source.
+		if (SUCCEEDED(hr))
+		{
+			hr = pSourceUnk->QueryInterface(__uuidof(IMFMediaSource), (void**)(&m_pSource));
+			m_state = OpenAsyncComplete; // Session finished opening URL
+		}
+		SafeRelease(&pSourceUnk);
+		return hr;
+	}
+
+	CHECK_HR(hr = m_pSession->EndGetEvent(pResult, &pEvent));
 
 	// Get the event type. 
-	hr = pEvent->GetType(&meType);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pEvent->GetType(&meType));
 
 	if (meType == MESessionClosed)
 	{
@@ -557,11 +520,7 @@ HRESULT CPlayer::Invoke(IMFAsyncResult *pResult)
 	else
 	{
 		// For all other events, get the next event in the queue.
-		hr = m_pSession->BeginGetEvent(this, NULL);
-		if (FAILED(hr))
-		{
-			goto done;
-		}
+		CHECK_HR(hr = m_pSession->BeginGetEvent(this, NULL));
 	}
 
 	// Check the application state. 
@@ -589,6 +548,7 @@ done:
 HRESULT CPlayer::HandleEvent(UINT_PTR pEventPtr)
 {
 	HRESULT hrStatus = S_OK;
+	HRESULT hr = S_OK;
 	MediaEventType meType = MEUnknown;
 
 	IMFMediaEvent *pEvent = (IMFMediaEvent*)pEventPtr;
@@ -599,11 +559,8 @@ HRESULT CPlayer::HandleEvent(UINT_PTR pEventPtr)
 	}
 
 	// Get the event type.
-	HRESULT hr = pEvent->GetType(&meType);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pEvent->GetType(&meType));
+
 
 	// Get the event status. If the operation that triggered the event 
 	// did not succeed, the status is a failure code.
@@ -612,11 +569,7 @@ HRESULT CPlayer::HandleEvent(UINT_PTR pEventPtr)
 	// Check if the async operation succeeded.
 	if (SUCCEEDED(hr) && FAILED(hrStatus))
 	{
-		hr = hrStatus;
-	}
-	if (FAILED(hr))
-	{
-		goto done;
+		CHECK_HR(hr = hrStatus);
 	}
 
 	switch (meType)
@@ -624,28 +577,30 @@ HRESULT CPlayer::HandleEvent(UINT_PTR pEventPtr)
 	case MESessionTopologyStatus:
 		hr = OnTopologyStatus(pEvent);
 		break;
-
 	case MEEndOfPresentation:
 		hr = OnPresentationEnded(pEvent);
+		ofLogVerbose("ofxWMFVideoPlayer") << "Presentation Ended";
 		break;
-
 	case MENewPresentation:
 		hr = OnNewPresentation(pEvent);
+		ofLogVerbose("ofxWMFVideoPlayer") << "New Presentation";
 		break;
-
 	case MESessionTopologySet:
 		IMFTopology * topology;
 		GetEventObject<IMFTopology>(pEvent, &topology);
 		WORD nodeCount;
 		topology->GetNodeCount(&nodeCount);
-		cout << "Topo set and we have " << nodeCount << " nodes" << endl;
+		ofLogVerbose("ofxWMFVideoPlayer") << "Topo set and we have " << nodeCount << " nodes" << endl;
 		SafeRelease(&topology);
 		break;
-
 	case MESessionStarted:
-
+		ofLogVerbose("ofxWMFVideoPlayer") << "Starting Session";
+	case MEBufferingStarted:
+		ofLogNotice("ofxWMFVideoPlayer") << "Buffering...";
 		break;
-
+	case MEBufferingStopped:
+		ofLogNotice("ofxWMFVideoPlayer") << "Finished Buffering...";
+		break;
 	default:
 		hr = OnSessionEvent(pEvent, meType);
 		break;
@@ -653,6 +608,37 @@ HRESULT CPlayer::HandleEvent(UINT_PTR pEventPtr)
 
 done:
 	SafeRelease(&pEvent);
+	return hr;
+}
+
+HRESULT CPlayer::GetBufferProgress(DWORD *pProgress)
+{
+	IPropertyStore *pProp = NULL;
+	PROPVARIANT var;
+
+	// Get the property store from the media session.
+	HRESULT hr = MFGetService(
+		m_pSession,
+		MFNETSOURCE_STATISTICS_SERVICE,
+		IID_PPV_ARGS(&pProp)
+		);
+
+	if (SUCCEEDED(hr))
+	{
+		PROPERTYKEY key;
+		key.fmtid = MFNETSOURCE_STATISTICS;
+		key.pid = MFNETSOURCE_BUFFERPROGRESS_ID;
+
+		hr = pProp->GetValue(key, &var);
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		*pProgress = var.lVal;
+		//		cout << "buff prog " << *pProgress << endl;
+	}
+	PropVariantClear(&var);
+	SafeRelease(&pProp);
 	return hr;
 }
 
@@ -717,31 +703,35 @@ HRESULT CPlayer::OnTopologyStatus(IMFMediaEvent *pEvent)
 //  Handler for MEEndOfPresentation event.
 HRESULT CPlayer::OnPresentationEnded(IMFMediaEvent *pEvent)
 {
-
-	m_pSession->Pause();
-	m_state = Paused;
-
-	//Create variant for seeking information
-	PROPVARIANT varStart;
-	PropVariantInit(&varStart);
-	varStart.vt = VT_I8;
-	varStart.hVal.QuadPart = 0; //i.e. seeking to the beginning
-
 	HRESULT hr = S_OK;
-	hr = m_pSession->Start(&GUID_NULL, &varStart);
 
-	if FAILED(hr)
-	{
-		ofLogError("ofxWMFVideoPlayerUtils", "Error while looping");
+	if (_isLooping) {
+		m_state = Started;
+
+		//Create variant for seeking information
+		PROPVARIANT varStart;
+		PropVariantInit(&varStart);
+		varStart.vt = VT_I8;
+		float rate = GetPlaybackRate();
+		if (rate > 0)
+			varStart.hVal.QuadPart = 0; //seeking to the beginning 
+		//else
+		//	varStart.hVal.QuadPart = getDuration()*.95 * 10000000.0; //seeking to the end 
+
+		hr = m_pSession->Start(&GUID_NULL, &varStart);
+		if FAILED(hr)
+		{
+			ofLogError("ofxWMFVideoPlayerUtils", "Error while looping");
+		}
+		PropVariantClear(&varStart);
 	}
-	if (!_isLooping) m_pSession->Pause();
-	else m_state = Started;
+	else {
+		// The session puts itself into the stopped state automatically.
+		m_state = Stopped;
+		isDone = true;
+	}
 
-	PropVariantClear(&varStart);
 
-
-	// The session puts itself into the stopped state automatically.
-	// else m_state = Stopped;
 	return S_OK;
 }
 
@@ -756,29 +746,20 @@ HRESULT CPlayer::OnNewPresentation(IMFMediaEvent *pEvent)
 	IMFTopology *pTopology = NULL;
 
 	// Get the presentation descriptor from the event.
-	HRESULT hr = GetEventObject(pEvent, &pPD);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	HRESULT hr = S_OK;
+	CHECK_HR(hr = GetEventObject(pEvent, &pPD));
+
 
 	// Create a partial topology.
-	hr = CreatePlaybackTopology(m_pSource, pPD, m_hwndVideo, &pTopology, m_pEVRPresenter);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = CreatePlaybackTopology(m_pSource, pPD, m_hwndVideo, &pTopology, m_pEVRPresenter));
+
 
 
 
 	SetMediaInfo(pPD);
 
 	// Set the topology on the media session.
-	hr = m_pSession->SetTopology(0, pTopology);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = m_pSession->SetTopology(0, pTopology));
 
 	m_state = OpenPending;
 
@@ -792,27 +773,16 @@ done:
 HRESULT CPlayer::CreateSession()
 {
 	// Close the old session, if any.
-	HRESULT hr = CloseSession();
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	HRESULT hr = S_OK;
+	CHECK_HR(hr = CloseSession());
 
 	assert(m_state == Closed);
 
 	// Create the media session.
-	hr = MFCreateMediaSession(NULL, &m_pSession);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = MFCreateMediaSession(NULL, &m_pSession));
 
 	// Start pulling events from the media session
-	hr = m_pSession->BeginGetEvent((IMFAsyncCallback*)this, NULL);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = m_pSession->BeginGetEvent((IMFAsyncCallback*)this, NULL));
 
 	m_state = Ready;
 
@@ -895,6 +865,7 @@ HRESULT CPlayer::StartPlayback()
 	}
 
 	PropVariantClear(&varStart);
+	isDone = false;
 	return hr;
 }
 
@@ -976,25 +947,18 @@ HRESULT CreateMediaSinkActivate(
 	IMFMediaSink *pSink = NULL;
 
 	// Get the media type handler for the stream.
-	HRESULT hr = pSourceSD->GetMediaTypeHandler(&pHandler);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	HRESULT hr = S_OK;
+	CHECK_HR(hr = pSourceSD->GetMediaTypeHandler(&pHandler));
 
 	// Get the major media type.
 	GUID guidMajorType;
-	hr = pHandler->GetMajorType(&guidMajorType);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pHandler->GetMajorType(&guidMajorType));
 
 	// Create an IMFActivate object for the renderer, based on the media type.
 	if (MFMediaType_Audio == guidMajorType)
 	{
 		// Create the audio renderer.
-		hr = MFCreateAudioRendererActivate(&pActivate);
+		CHECK_HR(hr = MFCreateAudioRendererActivate(&pActivate));
 		*ppActivate = pActivate;
 		(*ppActivate)->AddRef();
 	}
@@ -1004,13 +968,12 @@ HRESULT CreateMediaSinkActivate(
 		// hr = MFCreateVideoRendererActivate(hVideoWindow, &pActivate);
 
 
-		hr = MFCreateVideoRenderer(__uuidof(IMFMediaSink), (void**)&pSink);
+		CHECK_HR(hr = MFCreateVideoRenderer(__uuidof(IMFMediaSink), (void**)&pSink));
 
 		IMFVideoRenderer*  pVideoRenderer = NULL;
-		hr = pSink->QueryInterface(__uuidof(IMFVideoRenderer), (void**)&pVideoRenderer);
+		CHECK_HR(hr = pSink->QueryInterface(__uuidof(IMFVideoRenderer), (void**)&pVideoRenderer));
 
-		//ThrowIfFail( pVideoRenderer->InitializeRenderer( NULL, pVideoPresenter ) );
-		hr = pVideoRenderer->InitializeRenderer(NULL, pVideoPresenter);
+		CHECK_HR(hr = pVideoRenderer->InitializeRenderer(NULL, pVideoPresenter));
 
 		*ppMediaSink = pSink;
 		(*ppMediaSink)->AddRef();
@@ -1019,11 +982,8 @@ HRESULT CreateMediaSinkActivate(
 	{
 		// Unknown stream type. 
 		hr = E_FAIL;
-		// Optionally, you could deselect this stream instead of failing.
-	}
-	if (FAILED(hr))
-	{
 		goto done;
+		// Optionally, you could deselect this stream instead of failing.
 	}
 
 	// Return IMFActivate pointer to caller.
@@ -1047,37 +1007,18 @@ HRESULT AddSourceNode(
 	IMFTopologyNode *pNode = NULL;
 
 	// Create the node.
-	HRESULT hr = MFCreateTopologyNode(MF_TOPOLOGY_SOURCESTREAM_NODE, &pNode);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	HRESULT hr = S_OK;
+	CHECK_HR(hr = MFCreateTopologyNode(MF_TOPOLOGY_SOURCESTREAM_NODE, &pNode));
 
 	// Set the attributes.
-	hr = pNode->SetUnknown(MF_TOPONODE_SOURCE, pSource);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pNode->SetUnknown(MF_TOPONODE_SOURCE, pSource));
 
-	hr = pNode->SetUnknown(MF_TOPONODE_PRESENTATION_DESCRIPTOR, pPD);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pNode->SetUnknown(MF_TOPONODE_PRESENTATION_DESCRIPTOR, pPD));
 
-	hr = pNode->SetUnknown(MF_TOPONODE_STREAM_DESCRIPTOR, pSD);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pNode->SetUnknown(MF_TOPONODE_STREAM_DESCRIPTOR, pSD));
 
 	// Add the node to the topology.
-	hr = pTopology->AddNode(pNode);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pTopology->AddNode(pNode));
 
 	// Return the pointer to the caller.
 	*ppNode = pNode;
@@ -1143,38 +1084,19 @@ HRESULT AddOutputNode(
 	IMFTopologyNode *pNode = NULL;
 
 	// Create the node.
-	HRESULT hr = MFCreateTopologyNode(MF_TOPOLOGY_OUTPUT_NODE, &pNode);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	HRESULT hr = S_OK;
+	CHECK_HR(hr = MFCreateTopologyNode(MF_TOPOLOGY_OUTPUT_NODE, &pNode));
 
 	// Set the object pointer.
-	hr = pNode->SetObject(pActivate);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pNode->SetObject(pActivate));
 
 	// Set the stream sink ID attribute.
-	hr = pNode->SetUINT32(MF_TOPONODE_STREAMID, dwId);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pNode->SetUINT32(MF_TOPONODE_STREAMID, dwId));
 
-	hr = pNode->SetUINT32(MF_TOPONODE_NOSHUTDOWN_ON_REMOVE, FALSE);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pNode->SetUINT32(MF_TOPONODE_NOSHUTDOWN_ON_REMOVE, FALSE));
 
 	// Add the node to the topology.
-	hr = pTopology->AddNode(pNode);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	CHECK_HR(hr = pTopology->AddNode(pNode));
 
 	// Return the pointer to the caller.
 	*ppNode = pNode;
@@ -1213,32 +1135,21 @@ HRESULT AddBranchToPartialTopology(
 
 	BOOL fSelected = FALSE;
 
-	HRESULT hr = pPD->GetStreamDescriptorByIndex(iStream, &fSelected, &pSD);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
+	HRESULT hr = S_OK;
+	CHECK_HR(pPD->GetStreamDescriptorByIndex(iStream, &fSelected, &pSD));
 
 	if (fSelected)
 	{
 		// Create the media sink activation object.
-		hr = CreateMediaSinkActivate(pSD, hVideoWnd, &pSinkActivate, pVideoPresenter, &pMediaSink);
-		if (FAILED(hr))
-		{
-			goto done;
-		}
+		CHECK_HR(hr = CreateMediaSinkActivate(pSD, hVideoWnd, &pSinkActivate, pVideoPresenter, &pMediaSink));
 
 		// Add a source node for this stream.
-		hr = AddSourceNode(pTopology, pSource, pPD, pSD, &pSourceNode);
-		if (FAILED(hr))
-		{
-			goto done;
-		}
+		CHECK_HR(hr = AddSourceNode(pTopology, pSource, pPD, pSD, &pSourceNode));
 
 		// Create the output node for the renderer.
 		if (pSinkActivate)
 		{
-			hr = AddOutputNode(pTopology, pSinkActivate, 0, &pOutputNode);
+			CHECK_HR(hr = AddOutputNode(pTopology, pSinkActivate, 0, &pOutputNode));;
 		}
 		else if (pMediaSink)
 		{
@@ -1249,25 +1160,11 @@ HRESULT AddBranchToPartialTopology(
 
 			pMediaSink->GetStreamSinkByIndex(0, &pStreamSink);
 
-			hr = AddOutputNode(pTopology, pStreamSink, &pOutputNode);
-
-
-
-			//ThrowIfFail( pNode->SetObject( pStreamSink ) );
-		}
-		if (FAILED(hr))
-		{
-			goto done;
+			CHECK_HR(hr = AddOutputNode(pTopology, pStreamSink, &pOutputNode));
 		}
 
 		// Connect the source node to the output node.
 		hr = pSourceNode->ConnectOutput(0, pOutputNode, 0);
-
-
-
-
-
-
 
 	}
 	// else: If not selected, don't add the branch. 
@@ -1293,39 +1190,17 @@ HRESULT CreatePlaybackTopology(
 	DWORD cSourceStreams = 0;
 
 	// Create a new topology.
-	HRESULT hr = MFCreateTopology(&pTopology);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
-
-
-
+	HRESULT hr = S_OK;
+	CHECK_HR(hr = MFCreateTopology(&pTopology));
 
 	// Get the number of streams in the media source.
-	hr = pPD->GetStreamDescriptorCount(&cSourceStreams);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
-
+	CHECK_HR(hr = pPD->GetStreamDescriptorCount(&cSourceStreams));
 
 	// For each stream, create the topology nodes and add them to the topology.
 	for (DWORD i = 0; i < cSourceStreams; i++)
 	{
-		hr = AddBranchToPartialTopology(pTopology, pSource, pPD, i, hVideoWnd, pVideoPresenter);
-		if (FAILED(hr))
-		{
-			goto done;
-		}
-
-
-
-
-
-
+		CHECK_HR(hr = AddBranchToPartialTopology(pTopology, pSource, pPD, i, hVideoWnd, pVideoPresenter));
 	}
-
 
 	// Return the IMFTopology pointer to the caller.
 	*ppTopology = pTopology;
@@ -1336,8 +1211,6 @@ done:
 	return hr;
 }
 
-
-
 HRESULT AddToPlaybackTopology(
 	IMFMediaSource *pSource,          // Media source.
 	IMFPresentationDescriptor *pPD,   // Presentation descriptor.
@@ -1346,44 +1219,24 @@ HRESULT AddToPlaybackTopology(
 	IMFVideoPresenter *pVideoPresenter)
 {
 	DWORD cSourceStreams = 0;
-
-
 	HRESULT hr;
 
 	// Get the number of streams in the media source.
-	hr = pPD->GetStreamDescriptorCount(&cSourceStreams);
-	if (FAILED(hr))
-	{
-		goto done;
-	}
-
+	CHECK_HR(hr = pPD->GetStreamDescriptorCount(&cSourceStreams));
 
 	// For each stream, create the topology nodes and add them to the topology.
 	for (DWORD i = 1; i < cSourceStreams; i++)
 	{
 		ofLogWarning("Ignoring audio stream of video2. If the video is missing check : ofxWMFVideoPlayerUtils");
-		hr = AddBranchToPartialTopology(pTopology, pSource, pPD, i, hVideoWnd, pVideoPresenter);
-		if (FAILED(hr))
-		{
-			goto done;
-		}
-
+		CHECK_HR(hr = AddBranchToPartialTopology(pTopology, pSource, pPD, i, hVideoWnd, pVideoPresenter));
 	}
 
-
-
 done:
-
 	return hr;
 }
-
-
-
-
 ///------------ 
 /// Extra functions
 //---------------
-
 
 float CPlayer::getDuration() {
 	float duration = 0.0;
@@ -1450,7 +1303,10 @@ float CPlayer::getFrameRate() {
 				&denum
 				);
 
-			if (denum != 0) fps = (float)num / (float)denum;
+			if (denum != 0) {
+				fps = (float)num / (float)denum;
+				numFrames = denum;
+			}
 		}
 
 		SafeRelease(&pStreamHandler);
@@ -1466,7 +1322,56 @@ done:
 	return fps;
 }
 
+int CPlayer::getCurrentFrame() {
+	int frame = 0;
+	if (m_pSource == NULL)
+		return 0.0;
+	IMFPresentationDescriptor *pDescriptor = NULL;
+	IMFStreamDescriptor *pStreamHandler = NULL;
+	IMFMediaTypeHandler *pMediaType = NULL;
+	IMFMediaType  *pType;
+	DWORD nStream;
+	if FAILED(m_pSource->CreatePresentationDescriptor(&pDescriptor)) goto done;
+	if FAILED(pDescriptor->GetStreamDescriptorCount(&nStream)) goto done;
+	for (int i = 0; i < nStream; i++)
+	{
+		BOOL selected;
+		GUID type;
+		if FAILED(pDescriptor->GetStreamDescriptorByIndex(i, &selected, &pStreamHandler)) goto done;
+		if FAILED(pStreamHandler->GetMediaTypeHandler(&pMediaType)) goto done;
+		if FAILED(pMediaType->GetMajorType(&type)) goto done;
+		if FAILED(pMediaType->GetCurrentMediaType(&pType)) goto done;
 
+		if (type == MFMediaType_Video)
+		{
+			UINT32 num = 0;
+			UINT32 denum = 1;
+
+			MFGetAttributeRatio(
+				pType,
+				MF_MT_FRAME_RATE,
+				&num,
+				&denum
+				);
+
+			if (denum != 0) {
+				frame = num;
+				numFrames = denum; //update things
+			}
+		}
+
+		SafeRelease(&pStreamHandler);
+		SafeRelease(&pMediaType);
+		SafeRelease(&pType);
+		if (frame != 0) break; // we found the right stream, no point in continuing the loop
+	}
+done:
+	SafeRelease(&pDescriptor);
+	SafeRelease(&pStreamHandler);
+	SafeRelease(&pMediaType);
+	SafeRelease(&pType);
+	return frame;
+}
 
 HRESULT CPlayer::SetMediaInfo(IMFPresentationDescriptor *pPD) {
 	_width = 0;
@@ -1483,13 +1388,10 @@ HRESULT CPlayer::SetMediaInfo(IMFPresentationDescriptor *pPD) {
 	for (DWORD i = 0; i < count; i++) {
 		BOOL selected;
 
-		hr = pPD->GetStreamDescriptorByIndex(i, &selected, &spStreamDesc);
-		if (FAILED(hr)) goto done;
+		CHECK_HR(hr = pPD->GetStreamDescriptorByIndex(i, &selected, &spStreamDesc));
 		if (selected) {
-			hr = spStreamDesc->GetMediaTypeHandler(&pHandler);
-			if (FAILED(hr)) goto done;
-			hr = pHandler->GetMajorType(&guidMajorType);
-			if (FAILED(hr)) goto done;
+			CHECK_HR(hr = spStreamDesc->GetMediaTypeHandler(&pHandler));
+			CHECK_HR(hr = pHandler->GetMajorType(&guidMajorType));
 
 			if (MFMediaType_Video == guidMajorType) {
 
@@ -1503,14 +1405,23 @@ HRESULT CPlayer::SetMediaInfo(IMFPresentationDescriptor *pPD) {
 					_width = w;
 					_height = h;
 				}
+				UINT32 num = 0;
+				UINT32 denum = 1;
 
+				MFGetAttributeRatio(
+					sourceType,
+					MF_MT_FRAME_RATE,
+					&num,
+					&denum
+					);
 
+				if (denum != 0) {
+					numFrames = denum; 
+				}
 				goto done;
 			}
-
 		}
 	}
-
 
 done:
 	SafeRelease(&sourceType);
@@ -1519,43 +1430,126 @@ done:
 	return hr;
 }
 
-
-
-///////////////////////////////////////////////////////////////////////
-//  Name: SetPlaybackRate
-//  Description: 
-//      Gets the rate control service from Media Session.
-//      Sets the playback rate to the specified rate.
-//  Parameter:
-//      pMediaSession: [in] Media session object to query.
-//      rateRequested: [in] Playback rate to set.
-//      bThin: [in] Indicates whether to use thinning.
-///////////////////////////////////////////////////////////////////////
-// taken from MSDN example on rate control
-
 HRESULT  CPlayer::SetPlaybackRate(BOOL bThin, float rateRequested)
 {
 	HRESULT hr = S_OK;
+	IMFRateSupport *m_pRateSupport = NULL;
+	MFTIME  hnsSystemTime = 0;
+	MFTIME  hnsClockTime = 0;
 	IMFRateControl *pRateControl = NULL;
+	PlayerState curState = m_state;
+	IMFClock *pClock = NULL;
+	if (rateRequested < 0) {
+		ofLogError("ofxWMFVideoPlayer") << "Currently Rewinding Causes Errors";
+		hr = E_FAIL;
+		goto done;
+	}
+	// Allowed rate transitions:
 
+	// Positive <-> negative:   Stopped
+	// Negative <-> zero:       Stopped
+	// Postive <-> zero:        Paused or stopped
+
+	MFGetService(m_pSession,
+		MF_RATE_CONTROL_SERVICE,
+		IID_IMFRateSupport,
+		(void**)&m_pRateSupport);
+
+	// Check if this rate is supported. Try non-thinned playback first, 
+	// then fall back to thinned playback.
+	if (SUCCEEDED(hr))
+	{
+
+		hr = m_pRateSupport->IsRateSupported(bThin, rateRequested, NULL);
+	}
+
+	if (FAILED(hr) && !bThin)
+	{
+		ofLogError("ofxWMFVideoPlayer") << "rate is not supported without thinning";
+		goto done;
+	}
+	else if (FAILED(hr) && bThin) {
+		ofLogError("ofxWMFVideoPlayer") << "rate is not supported";
+		goto done;
+	}
+
+	if ((rateRequested > 0 && GetPlaybackRate() <= 0) || (rateRequested < 0 && GetPlaybackRate() >= 0))
+	{
+		//Transition to stopped
+
+		if (m_state == Started)
+		{
+			// Get the current clock position. This will be the restart time.
+			CHECK_HR(hr = m_pSession->GetClock(&pClock));
+
+			hr = pClock->GetCorrelatedTime(0, &hnsClockTime, &hnsSystemTime);
+
+			assert(hnsSystemTime != 0);
+
+			// Stop and set the rate
+			CHECK_HR(hr = Stop());
+		}
+		else if (m_state == Paused)
+		{
+			// The current state is paused.
+			// For this rate change, the session session must be stopped.
+			// However, the session cannot transition back from stopped to paused.
+			// Therefore, this rate transition is not supported while paused.
+			CHECK_HR(hr = Play());
+			CHECK_HR(hr = Stop());
+		}
+	}
+	else if (rateRequested == 0 && GetPlaybackRate() != 0)
+	{
+		// This transisition requires the paused state.
+
+		// Pause and set the rate.
+		CHECK_HR(hr = Pause());
+	}
+
+	// Set the rate.
 	// Get the rate control object from the Media Session.
-	hr = MFGetService(
+	CHECK_HR(hr = MFGetService(
 		m_pSession,
 		MF_RATE_CONTROL_SERVICE,
 		IID_IMFRateControl,
-		(void**)&pRateControl);
+		(void**)&pRateControl));
 
 	// Set the playback rate.
 	if (SUCCEEDED(hr))
 	{
-		hr = pRateControl->SetRate(bThin, rateRequested);
+		CHECK_HR(hr = pRateControl->SetRate(bThin, rateRequested));
+		m_state = Started; //setting the rate automatically sets it to play
+	}
+	if (curState == Stopped) CHECK_HR(hr = Stop());
+	if (curState == Paused) CHECK_HR(hr = Pause());
+	
+done:
+
+	if (FAILED(hr))
+	{
+		if (hr == MF_E_REVERSE_UNSUPPORTED)
+			ofLogError("ofxWMFVideoPlayer") << "The object does not support reverse playback.";
+		else if (hr == MF_E_THINNING_UNSUPPORTED)
+			ofLogError("ofxWMFVideoPlayer") << "The object does not support thinning.";
+		else if (hr == MF_E_UNSUPPORTED_RATE)
+			ofLogError("ofxWMFVideoPlayer") << "The object does not support the requested playback rate.";
+		else if (hr == MF_E_UNSUPPORTED_RATE_TRANSITION)
+			ofLogError("ofxWMFVideoPlayer") << "The object cannot change to the new rate while in the running state.";
+		else if (hr == MF_E_UNSUPPORTED_STATE_TRANSITION)
+			ofLogError("ofxWMFVideoPlayer") << "The object cannot change to the new state.";
+		else
+			ofLogError("ofxWMFVideoPlayer") << "Rate Change failed";
 	}
 
 	// Clean up.
-	SAFE_RELEASE(pRateControl);
 
+	SAFE_RELEASE(m_pRateSupport);
+	SAFE_RELEASE(pRateControl);
+	SAFE_RELEASE(pClock);
 	return hr;
 }
+
 
 float  CPlayer::GetPlaybackRate()
 {

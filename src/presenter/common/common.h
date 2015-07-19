@@ -12,11 +12,11 @@
 template <class T>
 inline void SAFE_RELEASE(T*& p)
 {
-    if (p)
-    {
-        p->Release();
-        p = NULL;
-    }
+	if (p)
+	{
+		p->Release();
+		p = NULL;
+	}
 }
 #endif
 
@@ -39,15 +39,15 @@ inline void SAFE_RELEASE(T*& p)
 template <class T>
 void CopyComPointer(T* &dest, T *src)
 {
-    if (dest)
-    {
-        dest->Release();
-    }
-    dest = src;
-    if (dest)
-    {
-        dest->AddRef();
-    }
+	if (dest)
+	{
+		dest->Release();
+	}
+	dest = src;
+	if (dest)
+	{
+		dest->AddRef();
+	}
 }
 
 // SAFE_ARRAY_DELETE macro.
@@ -84,33 +84,33 @@ void CopyComPointer(T* &dest, T *src)
 template <class T1, class T2>
 bool AreComObjectsEqual(T1 *p1, T2 *p2)
 {
-    bool bResult = false;
-    if (p1 == NULL && p2 == NULL)
-    {
-        // Both are NULL
-        bResult = true;
-    }
-    else if (p1 == NULL || p2 == NULL)
-    {
-        // One is NULL and one is not
-        bResult = false;
-    }
-    else 
-    {
-        // Both are not NULL. Compare IUnknowns.
-        IUnknown *pUnk1 = NULL;
-        IUnknown *pUnk2 = NULL;
-        if (SUCCEEDED(p1->QueryInterface(IID_IUnknown, (void**)&pUnk1)))
-        {
-            if (SUCCEEDED(p2->QueryInterface(IID_IUnknown, (void**)&pUnk2)))
-            {
-                bResult = (pUnk1 == pUnk2);
-                pUnk2->Release();
-            }
-            pUnk1->Release();
-        }
-    }
-    return bResult;
+	bool bResult = false;
+	if (p1 == NULL && p2 == NULL)
+	{
+		// Both are NULL
+		bResult = true;
+	}
+	else if (p1 == NULL || p2 == NULL)
+	{
+		// One is NULL and one is not
+		bResult = false;
+	}
+	else
+	{
+		// Both are not NULL. Compare IUnknowns.
+		IUnknown *pUnk1 = NULL;
+		IUnknown *pUnk2 = NULL;
+		if (SUCCEEDED(p1->QueryInterface(IID_IUnknown, (void**)&pUnk1)))
+		{
+			if (SUCCEEDED(p2->QueryInterface(IID_IUnknown, (void**)&pUnk2)))
+			{
+				bResult = (pUnk1 == pUnk2);
+				pUnk2->Release();
+			}
+			pUnk1->Release();
+		}
+	}
+	return bResult;
 }
 
 #include <assert.h>

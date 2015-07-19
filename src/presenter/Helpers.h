@@ -20,26 +20,26 @@
 // Manages a list of allocated samples.
 //-----------------------------------------------------------------------------
 
-class SamplePool 
+class SamplePool
 {
 public:
-    SamplePool();
-    virtual ~SamplePool();
+	SamplePool();
+	virtual ~SamplePool();
 
-    HRESULT Initialize(VideoSampleList& samples);
-    HRESULT Clear();
-   
-    HRESULT GetSample(IMFSample **ppSample);    // Does not block.
-    HRESULT ReturnSample(IMFSample *pSample);   
-    BOOL    AreSamplesPending();
+	HRESULT Initialize(VideoSampleList& samples);
+	HRESULT Clear();
+
+	HRESULT GetSample(IMFSample **ppSample);    // Does not block.
+	HRESULT ReturnSample(IMFSample *pSample);
+	BOOL    AreSamplesPending();
 
 private:
-    CritSec                     m_lock;
+	CritSec                     m_lock;
 
-    VideoSampleList             m_VideoSampleQueue;         // Available queue
+	VideoSampleList             m_VideoSampleQueue;         // Available queue
 
-    BOOL                        m_bInitialized;
-    DWORD                       m_cPending;
+	BOOL                        m_bInitialized;
+	DWORD                       m_cPending;
 };
 
 
@@ -59,40 +59,40 @@ template <class T>
 class ThreadSafeQueue
 {
 public:
-    HRESULT Queue(T *p)
-    {
-        AutoLock lock(m_lock);
-        return m_list.InsertBack(p);
-    }
+	HRESULT Queue(T *p)
+	{
+		AutoLock lock(m_lock);
+		return m_list.InsertBack(p);
+	}
 
-    HRESULT Dequeue(T **pp)
-    {
-        AutoLock lock(m_lock);
+	HRESULT Dequeue(T **pp)
+	{
+		AutoLock lock(m_lock);
 
-        if (m_list.IsEmpty())
-        {
-            *pp = NULL;
-            return S_FALSE;
-        }
+		if (m_list.IsEmpty())
+		{
+			*pp = NULL;
+			return S_FALSE;
+		}
 
-        return m_list.RemoveFront(pp);
-    }
+		return m_list.RemoveFront(pp);
+	}
 
-    HRESULT PutBack(T *p)
-    {
-        AutoLock lock(m_lock);
-        return m_list.InsertFront(p);
-    }
+	HRESULT PutBack(T *p)
+	{
+		AutoLock lock(m_lock);
+		return m_list.InsertFront(p);
+	}
 
-    void Clear() 
-    {
-        AutoLock lock(m_lock);
-        m_list.Clear();
-    }
+	void Clear()
+	{
+		AutoLock lock(m_lock);
+		m_list.Clear();
+	}
 
 
 private:
-    CritSec         m_lock; 
-    ComPtrList<T>   m_list;
+	CritSec         m_lock;
+	ComPtrList<T>   m_list;
 };
 

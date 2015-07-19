@@ -30,15 +30,15 @@ HRESULT FindAdapter(IDirect3D9 *pD3D9, HMONITOR hMonitor, UINT *puAdapterID);
 //-----------------------------------------------------------------------------
 
 D3DPresentEngine::D3DPresentEngine(HRESULT& hr) :
-m_hwnd(NULL),
-m_DeviceResetToken(0),
-m_pD3D9(NULL),
-m_pDevice(NULL),
-m_pDeviceManager(NULL),
-m_pSurfaceRepaint(NULL),
-gl_handleD3D(NULL),
-d3d_shared_texture(NULL),
-d3d_shared_surface(NULL)
+	m_hwnd(NULL),
+	m_DeviceResetToken(0),
+	m_pD3D9(NULL),
+	m_pDevice(NULL),
+	m_pDeviceManager(NULL),
+	m_pSurfaceRepaint(NULL),
+	gl_handleD3D(NULL),
+	d3d_shared_texture(NULL),
+	d3d_shared_surface(NULL)
 {
 	SetRectEmpty(&m_rcDestRect);
 

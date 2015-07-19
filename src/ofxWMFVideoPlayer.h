@@ -15,104 +15,135 @@
 
 class ofxWMFVideoPlayer;
 
-
 class CPlayer;
 class ofxWMFVideoPlayer : public ofBaseVideoPlayer {
 
-	private:
-		static int  _instanceCount;
-		
-		
-		HWND		_hwndPlayer;
-		
-		BOOL bRepaintClient;
-		
-		
-		int _width;
-		int _height;
-
-
-		bool _waitForLoadedToPlay;
-		bool _isLooping;
-		bool _wantToSetVolume;
-		float _currentVolume;
-
-		bool _sharedTextureCreated;
-		
-		ofTexture _tex;
-		ofPixels _pixels;
-
-		BOOL InitInstance();
-
-		
-		void                OnPlayerEvent(HWND hwnd, WPARAM pUnkPtr);
-
-		float _frameRate;
-
-
-
-	public:
+private:
 	CPlayer*	_player;
 
 	int _id;
 
-	
+	static int  _instanceCount;
+
+	HWND		_hwndPlayer;
+
+	BOOL bRepaintClient;
+
+	int _width;
+	int _height;
+
+	bool _waitingForLoad;
+	bool _waitForLoadedToPlay;
+	bool _isLoaded;
+	bool _isLooping;
+	bool _wantToSetVolume;
+	float _currentVolume;
+
+	bool _sharedTextureCreated;
+
+	ofTexture _tex;
+	ofTexture * playerTex;
+	ofPixels _pixels;
+
+	BOOL InitInstance();
+	bool endLoad();
+
+	void                OnPlayerEvent(HWND hwnd, WPARAM pUnkPtr);
+
+	float _frameRate;
+
+	void				setLoop(bool isLooping) { _isLooping = isLooping; _player->setLooping(isLooping); }
+
+public:
+
 	ofxWMFVideoPlayer();
-	 ~ofxWMFVideoPlayer();
+	~ofxWMFVideoPlayer();
 
-	 bool				loadMovie(string name);
-	 //bool 				loadMovie(string name_left, string name_right) ;
-	 void				close();
-	 void				update();
-	
-	 void				play();
-	 void				stop();		
-	 void				pause();
-	 void				setPaused( bool bPause ) ; 
+	bool				loadMovie(string name) { return loadMovie(name, false); }
+	bool				loadMovie(string name, bool asynchronous);
+	void				closeMovie() { close(); }
+	void				close();
 
-	 float				getPosition();
-	 float				getDuration();
-	 float				getFrameRate();
+	void				update();
+	void				play();
+	void				stop();
 
-	 void				setPosition(float pos);
+	void				setPaused(bool bPause);
 
-	 void				setVolume(float vol);
-	 float				getVolume();
+	float				getPosition();
+	float				getPositionInSeconds();
+	float				getDuration();
+	float				getFrameRate();
 
-	 float				getHeight();
-	 float				getWidth();
+	bool				canRewind() { return _player->canRewind(); }
 
-	 bool				isPlaying(); 
-	 bool				isStopped();
-	 bool				isPaused();
+	void				setPosition(float pct);
 
-	 void				setLoop(bool isLooping);
-	 bool				isLooping() { return _isLooping; }
+	void				setVolume(float vol);
+	float				getVolume();
 
-	 void				setLoopState( ofLoopType loopType ) ;
-	 bool				getIsMovieDone( ) ; 
+	float				getHeight() { return _player->getHeight(); }
+	float				getWidth() { return _player->getWidth(); }
 
-	 bool				setSpeed(float speed, bool useThinning = false); //thinning drops delta frames for faster playback though appears to be choppy, default is false
-	 float				getSpeed();
+	bool				isLooping() { return _isLooping; }
 
-	 bool isLoaded();
-	 
-	 unsigned char * getPixels();
-	 ofPixels& getPixelsRef(){ return _pixels; }
-	 ofTexture * getTexture(){ return &_tex; };
-	 bool setPixelFormat(ofPixelFormat pixelFormat);
-	 ofPixelFormat getPixelFormat();
+	void				setLoopState(ofLoopType loopType);
+	ofLoopType			getLoopState() { return _isLooping ? OF_LOOP_NORMAL : OF_LOOP_NONE; }
+	bool				getIsMovieDone();
 
-	 bool isFrameNew();
+	bool				setSpeed(float speed, bool useThinning = false); //thinning drops delta frames for faster playback though appears to be choppy, default is false
+	float				getSpeed();
 
+	bool				isLoaded();
 
-	 void draw(int x, int y , int w, int h);
-	 void draw(int x, int y) { draw(x,y,getWidth(),getHeight()); }
+	unsigned char *		getPixels();
+	ofPixelFormat		getPixelFormat();
+	bool				isFrameNew();
 
-	 HWND getHandle() { return _hwndPlayer;}
-	 LRESULT WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+	PlayerState getState() { return _player->GetState(); }
+	bool isPlaying() { return _player->GetState() == Started; }
+	bool isStopped() { return (_player->GetState() == Stopped || _player->GetState() == Paused); }
+	bool isPaused() { return _player->GetState() == Paused; }
 
-	 static void forceExit();
+	ofPixels& getPixelsRef() { return _pixels; }
+	ofTexture & getTextureReference() {
+		if (playerTex == NULL) {
+			return _tex;
+		}
+		else {
+			return *playerTex;
+		}
+	};
+	bool setPixelFormat(ofPixelFormat pixelFormat);
 
+	void draw(int x, int y, int w, int h);
+	void draw(int x, int y) { draw(x, y, getWidth(), getHeight()); }
+
+	void setAnchorPercent(float xPct, float yPct) {
+		if (_isLoaded) {
+			_player->m_pEVRPresenter->lockSharedTexture();
+				_tex.setAnchorPercent(xPct, yPct);
+			_player->m_pEVRPresenter->unlockSharedTexture();
+		}
+	}
+	void setAnchorPoint(float x, float y) {
+		if (_isLoaded) {
+			_player->m_pEVRPresenter->lockSharedTexture();
+			_tex.setAnchorPoint(x, y);
+			_player->m_pEVRPresenter->unlockSharedTexture();
+		}
+	}
+	void resetAnchor() {
+		if (_isLoaded) {
+			_player->m_pEVRPresenter->lockSharedTexture();
+			_tex.resetAnchor();
+			_player->m_pEVRPresenter->unlockSharedTexture();
+		}
+	}
+
+	HWND getHandle() { return _hwndPlayer; }
+	LRESULT WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+
+	static void forceExit();
 
 };
