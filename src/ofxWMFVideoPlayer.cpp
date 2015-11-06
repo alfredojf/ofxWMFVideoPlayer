@@ -84,7 +84,7 @@ void ofxWMFVideoPlayer::forceExit()
 	}
 }
 
-bool ofxWMFVideoPlayer::loadMovie(string name, bool asynchronous) {
+bool ofxWMFVideoPlayer::load(string name) {
 	_isLoaded = false;
 	if (!_player) {
 		ofLogError("ofxWMFVideoPlayer") << "Player not created. Can't open the movie.";
@@ -103,33 +103,46 @@ bool ofxWMFVideoPlayer::loadMovie(string name, bool asynchronous) {
 		string s = ofToDataPath(name);
 		std::wstring w(s.length(), L' ');
 		std::copy(s.begin(), s.end(), w.begin());
-
-		if (asynchronous) {
-			hr = _player->OpenURLAsync(w.c_str());
-		}
-		else {
-			hr = _player->OpenURL(w.c_str());
-
-		}
+		hr = _player->OpenURL(w.c_str());
 	}
 	else {
 		string s = name;
 		std::wstring w(s.length(), L' ');
 		std::copy(s.begin(), s.end(), w.begin());
-		if (asynchronous) {
-			hr = _player->OpenURLAsync(w.c_str());
-		}
-		else {
-			hr = _player->OpenURL(w.c_str());
-		}
-	}
-	if (asynchronous) {
-		_waitingForLoad = true;
-		return true;
-
+		hr = _player->OpenURL(w.c_str());
 	}
 	_waitForLoadedToPlay = false;
 	return endLoad();
+}
+
+void ofxWMFVideoPlayer::loadAsync(string name) {
+	_isLoaded = false;
+	if (!_player) {
+		ofLogError("ofxWMFVideoPlayer") << "Player not created. Can't open the movie.";
+		return;
+	}
+
+	HRESULT hr = S_OK;
+	if (name.find("http") == string::npos) {
+		DWORD fileAttr = GetFileAttributesA(ofToDataPath(name).c_str());
+		if (fileAttr == INVALID_FILE_ATTRIBUTES) {
+			stringstream s;
+			s << "The video file '" << name << "'is missing.";
+			ofLog(OF_LOG_ERROR, "ofxWMFVideoPlayer:" + s.str());
+			return;
+		}
+		string s = ofToDataPath(name);
+		std::wstring w(s.length(), L' ');
+		std::copy(s.begin(), s.end(), w.begin());
+		hr = _player->OpenURLAsync(w.c_str());
+	}
+	else {
+		string s = name;
+		std::wstring w(s.length(), L' ');
+		std::copy(s.begin(), s.end(), w.begin());
+		hr = _player->OpenURLAsync(w.c_str());
+	}
+	_waitingForLoad = true;
 }
 
 bool ofxWMFVideoPlayer::endLoad() {
@@ -217,33 +230,39 @@ bool	ofxWMFVideoPlayer::getIsMovieDone()
 	return _player->getIsDone();
 }
 
-bool ofxWMFVideoPlayer::isLoaded() {
+bool ofxWMFVideoPlayer::isLoaded() const {
 	if (_player == NULL) { return false; }
 	PlayerState ps = _player->GetState();
 	return ps == PlayerState::Paused || ps == PlayerState::Stopped || ps == PlayerState::Started;
 }
 
-unsigned char * ofxWMFVideoPlayer::getPixels() {
+ofPixels& ofxWMFVideoPlayer::getPixels() {
 	if (_tex.isAllocated()) {
 		_tex.readToPixels(_pixels);
-		return _pixels.getPixels();
 	}
-	return NULL;
+	return _pixels;
+}
+
+const ofPixels& ofxWMFVideoPlayer::getPixels() const {
+	/*if (_tex.isAllocated()) {
+		_tex.readToPixels(_pixels);
+	}*/
+	return _pixels;
 }
 
 bool ofxWMFVideoPlayer::setPixelFormat(ofPixelFormat pixelFormat) {
 	return (pixelFormat == OF_PIXELS_RGB);
 }
 
-ofPixelFormat ofxWMFVideoPlayer::getPixelFormat() {
+ofPixelFormat ofxWMFVideoPlayer::getPixelFormat() const {
 	return OF_PIXELS_RGB;
 }
 
-bool ofxWMFVideoPlayer::isFrameNew() {
+bool ofxWMFVideoPlayer::isFrameNew() const {
 	return true;//TODO fix this
 }
 
-void ofxWMFVideoPlayer::setPaused(bool bPause)
+void ofxWMFVideoPlayer::setPaused(bool bPause) 
 {
 	if (bPause == true)
 		_player->Pause();
@@ -346,7 +365,7 @@ bool ofxWMFVideoPlayer::setSpeed(float speed, bool useThinning) {
 		_player->setPosition(position);
 		//_player->Play();
 	}
-	return hr == S_OK ?  true : false;
+	return hr == S_OK ? true : false;
 }
 
 
