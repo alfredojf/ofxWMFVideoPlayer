@@ -15,12 +15,13 @@
 //
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //
+// Portions Copyright (c) Microsoft Open Technologies, Inc. 
 //
 //////////////////////////////////////////////////////////////////////////
 
 #include "EVRPresenter.h"
-
-
+#include "ofPixels.h"
+#include <algorithm>
 
 HRESULT FindAdapter(IDirect3D9 *pD3D9, HMONITOR hMonitor, UINT *puAdapterID);
 
@@ -37,10 +38,20 @@ D3DPresentEngine::D3DPresentEngine(HRESULT& hr) :
 	m_pDeviceManager(NULL),
 	m_pSurfaceRepaint(NULL),
 	gl_handleD3D(NULL),
-	d3d_shared_texture(NULL),
-	d3d_shared_surface(NULL)
+	d3d_texture(NULL),
+	d3d_surface(NULL),
+    m_offscreenSurface(NULL),
+    hasNVidiaExtensions(false),
+    m_backBuffer(NULL),
+    m_frontBuffer(NULL),
+    m_hasNewFrame(false)
+
 {
-	SetRectEmpty(&m_rcDestRect);
+    hasNVidiaExtensions = (wglewIsSupported("WGL_NV_DX_interop") == GL_TRUE);
+#ifdef NO_NV_EXTENSIONS
+    hasNVidiaExtensions = false;
+#endif
+    SetRectEmpty(&m_rcDestRect);
 
 	ZeroMemory(&m_DisplayMode, sizeof(m_DisplayMode));
 
@@ -59,10 +70,9 @@ D3DPresentEngine::D3DPresentEngine(HRESULT& hr) :
 
 D3DPresentEngine::~D3DPresentEngine()
 {
-	if (gl_handleD3D) {
+    releaseSharedTexture();
 
-		releaseSharedTexture();
-
+	if (hasNVidiaExtensions && gl_handleD3D) {
 		printf("WMFVideoPlayer : Killing present engine.....");
 		if (wglDXCloseDeviceNV(gl_handleD3D))
 		{
@@ -83,21 +93,33 @@ D3DPresentEngine::~D3DPresentEngine()
 
 bool D3DPresentEngine::createSharedTexture(int w, int h, int textureID)
 {
-
+    HRESULT hr = S_OK;
 	_w = w;
 	_h = h;
-	if (gl_handleD3D == NULL) 	gl_handleD3D = wglDXOpenDeviceNV(m_pDevice);
 
-	if (!gl_handleD3D)
-	{
-		printf("ofxWMFVideoplayer : openning the shared device failed\nCreate SharedTexture Failed");
-		return false;
+    if(hasNVidiaExtensions)
+    {
+	    if (gl_handleD3D == NULL ) 	gl_handleD3D = wglDXOpenDeviceNV(m_pDevice);
 
-	}
+	    if (!gl_handleD3D)
+	    {
+		    printf("ofxWMFVideoplayer : openning the shared device failed\nCreate SharedTexture Failed");
+		    return false;
 
-	gl_name = textureID;
+	    }
+	    gl_name=textureID;
+    }
 
 	HANDLE sharedHandle = NULL; //We need to create a shared handle for the ressource, otherwise the extension fails on ATI/Intel cards
+	
+	if(hasNVidiaExtensions)
+    {
+        hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,&sharedHandle);
+    }
+    else
+    {
+        hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,NULL);
+    }
 
 
 	HRESULT hr = m_pDevice->CreateTexture(w, h, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &d3d_shared_texture, &sharedHandle);
@@ -108,60 +130,90 @@ bool D3DPresentEngine::createSharedTexture(int w, int h, int textureID)
 		return false;
 	}
 
-	if (!sharedHandle)
+	if (hasNVidiaExtensions && !sharedHandle)
 	{
 		printf("ofxWMFVideoplayer : Error creating D3D sahred handle\n");
 		return false;
 	}
+	
+    if(hasNVidiaExtensions)
+    {
+	    wglDXSetResourceShareHandleNV(d3d_texture,sharedHandle);
+    }
 
-	wglDXSetResourceShareHandleNV(d3d_shared_texture, sharedHandle);
-
-	d3d_shared_texture->GetSurfaceLevel(0, &d3d_shared_surface);
-
-	gl_handle = wglDXRegisterObjectNV(gl_handleD3D, d3d_shared_texture,
-		gl_name,
-		GL_TEXTURE_RECTANGLE,
-		WGL_ACCESS_READ_ONLY_NV);
-
-
+	d3d_texture->GetSurfaceLevel(0,&d3d_surface);
+		
+    if(hasNVidiaExtensions)
+    {
+	    gl_handle = wglDXRegisterObjectNV(gl_handleD3D, d3d_texture,
+		    gl_name,
+		    GL_TEXTURE_RECTANGLE,
+		    WGL_ACCESS_READ_ONLY_NV);
 
 
-
-	if (!gl_handle)
-	{
-		printf("ofxWMFVideoplayer : openning the shared texture failed\nCreate SharedTexture Failed");
-		return false;
-	}
+	    if (!gl_handle) 
+	    {
+		    printf("ofxWMFVideoplayer : openning the shared texture failed\nCreate SharedTexture Failed");
+		    return false;
+	    }
+    }
+    else
+    {
+        m_backBuffer = new unsigned char[w * h * 4];
+        m_frontBuffer = new unsigned char[w * h * 4];
+        m_hasNewFrame = false;
+    }
 	return true;
 }
 
 void D3DPresentEngine::releaseSharedTexture()
 {
-	if (!gl_handleD3D) return;
-	//unlock the texture incase its being used
-	wglDXUnlockObjectsNV(gl_handleD3D, 1, &gl_handle);
-
-	//this is causing access violations no matter what happens
-	//wglDXUnregisterObjectNV(gl_handleD3D, &gl_handle);
+	if (hasNVidiaExtensions && gl_handleD3D)
+    {
+	    wglDXUnlockObjectsNV(gl_handleD3D, 1, &gl_handle);
+	    wglDXUnregisterObjectNV(gl_handleD3D,gl_handle);
+    }
 
 	//glDeleteTextures(1, &gl_name);
-	SAFE_RELEASE(d3d_shared_surface);
-	SAFE_RELEASE(d3d_shared_texture);
+	SAFE_RELEASE(d3d_surface);
+	SAFE_RELEASE(d3d_texture);
+	SAFE_RELEASE(m_offscreenSurface);
+    
+    delete [] m_backBuffer;
+    delete [] m_frontBuffer;
 
+    m_backBuffer = NULL;
+    m_frontBuffer = NULL;
 }
+
 bool D3DPresentEngine::lockSharedTexture()
 {
-	if (!gl_handleD3D) return false;
-	if (!gl_handle) return false;
-	return wglDXLockObjectsNV(gl_handleD3D, 1, &gl_handle);
+    if (hasNVidiaExtensions)
+    {
+	    if (!gl_handleD3D) return false;
+	    if (!gl_handle) return false;
+	    return wglDXLockObjectsNV(gl_handleD3D, 1, &gl_handle);
+    }
+    else
+    {
+
+    }
+
+    return true;
 }
 
 bool D3DPresentEngine::unlockSharedTexture()
 {
-	if (!gl_handleD3D) return false;
-	if (!gl_handle) return false;
-	return wglDXUnlockObjectsNV(gl_handleD3D, 1, &gl_handle);
+    if (hasNVidiaExtensions)
+    {
+	    if (!gl_handleD3D) return false;
+	    if (!gl_handle) return false;
+	    return wglDXUnlockObjectsNV(gl_handleD3D, 1, &gl_handle);
+    }
+    return true;
 }
+
+
 
 
 
@@ -703,21 +755,87 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
 	HRESULT hr = S_OK;
 
 
-	//pSwapChain->GetFrontBufferData(d3d_shared_surface);
+	//pSwapChain->GetFrontBufferData(d3d_surface);
 	IDirect3DSurface9 *surface;
-	pSwapChain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &surface);
-	if (m_pDevice->StretchRect(surface, NULL, d3d_shared_surface, NULL, D3DTEXF_NONE) != D3D_OK)
+	pSwapChain->GetBackBuffer(0,D3DBACKBUFFER_TYPE_MONO,&surface);
+
+    hr = m_pDevice->StretchRect(surface,NULL,d3d_surface,NULL,D3DTEXF_NONE);
+    if (hr != D3D_OK)
 	{
 		printf("ofxWMFVideoPlayer: Error while copying texture to gl context \n");
 	}
-	SAFE_RELEASE(surface);
+    hr = pSwapChain->Present(NULL, &m_rcDestRect, m_hwnd, NULL, 0);
 
-	if (m_hwnd == NULL)
-	{
-		return MF_E_INVALIDREQUEST;
-	}
+    pSwapChain->GetBackBuffer(0,D3DBACKBUFFER_TYPE_MONO,&surface);
 
-	hr = pSwapChain->Present(NULL, &m_rcDestRect, m_hwnd, NULL, 0);
+    if(!hasNVidiaExtensions)
+    {
+        D3DSURFACE_DESC rtDesc;
+        pSurface->GetDesc( &rtDesc );
+
+        if(!m_offscreenSurface)
+        {
+            if( FAILED(hr) )
+                return hr;
+        }
+
+        hr = m_pDevice->GetRenderTargetData( surface, m_offscreenSurface );
+        bool ok = SUCCEEDED(hr);
+        if( ok )
+        {
+            // Here we have data in offscreenSurface.
+            D3DLOCKED_RECT lr;
+            RECT rect;
+            rect.left = 0;
+            rect.right = rtDesc.Width;
+            rect.top = 0;
+            rect.bottom = rtDesc.Height;
+            // Lock the surface to read pixels
+            hr = m_offscreenSurface->LockRect( &lr, &rect, D3DLOCK_READONLY );
+            if( SUCCEEDED(hr) )
+            {
+                std::lock_guard<std::mutex> guard(m_mutex);
+                unsigned int numBytes = rtDesc.Width * 4;
+
+               // Pointer to data is lt.pBits, each row is
+                // lr.Pitch bytes apart (often it is the same as width*bpp, but
+                // can be larger if driver uses padding)
+
+                uint8_t* buf = m_backBuffer;
+                uint8_t* pbScanline = (uint8_t*)lr.pBits;
+                for (unsigned int row = 0; row < rtDesc.Height; row++)
+                {
+                    for (unsigned int i = 0; i < numBytes; i += 4)
+                    {
+                        // swizzle the R and B values (BGR to RGB)
+
+                        buf[i] = pbScanline[i + 2];
+                        buf[i + 1] = pbScanline[i + 1];
+                        buf[i + 2] = pbScanline[i];  
+                        buf[i + 3] = 255;  
+                    }
+                    pbScanline += lr.Pitch;
+                    buf += numBytes;
+                }
+            }
+
+            // Read the data here!
+            m_offscreenSurface->UnlockRect();
+            m_hasNewFrame = true;
+        }
+        else
+        {
+            ok = false;
+        }
+    }  
+
+    if (m_hwnd == NULL)
+    {
+        return MF_E_INVALIDREQUEST;
+    }
+	
+            hr = m_pDevice->CreateOffscreenPlainSurface( rtDesc.Width, rtDesc.Height, rtDesc.Format, D3DPOOL_SYSTEMMEM, &m_offscreenSurface, NULL );
+
 
 
 
@@ -725,6 +843,19 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
 
 
 	return hr;
+}
+
+
+unsigned char* D3DPresentEngine::getPixels()
+{
+    std::lock_guard<std::mutex> guard(m_mutex);
+
+    if(m_hasNewFrame)
+    {
+        std::swap(m_frontBuffer, m_backBuffer);
+        m_hasNewFrame = false;
+    }
+    return m_frontBuffer;
 }
 
 //-----------------------------------------------------------------------------

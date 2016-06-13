@@ -2,6 +2,8 @@
 //ofxWMFVideoPlayer addon written by Philippe Laulheret for Second Story (secondstory.com)
 //Based upon Windows SDK samples
 //MIT Licensing
+// Portions Copyright (c) Microsoft Open Technologies, Inc. 
+
 
 
 #include "ofMain.h"

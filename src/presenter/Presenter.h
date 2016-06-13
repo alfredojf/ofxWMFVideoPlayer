@@ -9,6 +9,7 @@
 //
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //
+// Portions Copyright (c) Microsoft Open Technologies, Inc. 
 //
 //////////////////////////////////////////////////////////////////////////
 
@@ -68,16 +69,17 @@ enum FRAMESTEP_STATE
 //  Description: Implements the custom presenter.
 //-----------------------------------------------------------------------------
 
-class EVRCustomPresenter :
-	BaseObject,
-	RefCountedObject,
-	// COM interfaces:
-	public IMFVideoDeviceID,
-	public IMFVideoPresenter, // Inherits IMFClockStateSink
-	public IMFRateSupport,
-	public IMFGetService,
-	public IMFTopologyServiceLookupClient,
-	public IMFVideoDisplayControl
+
+class EVRCustomPresenter : 
+    BaseObject,  
+    RefCountedObject, 
+    // COM interfaces:
+    public IMFVideoDeviceID,
+    public IMFVideoPresenter, // Inherits IMFClockStateSink
+    public IMFRateSupport,
+    public IMFGetService,
+    public IMFTopologyServiceLookupClient,
+    public IMFVideoDisplayControl
 {
 
 public:
@@ -256,10 +258,10 @@ protected:
 	IMediaEventSink             *m_pMediaEventSink;      // The EVR's event-sink interface.
 	IMFMediaType                *m_pMediaType;           // Output media type
 
-
 public:
 	HANDLE getSharedDeviceHandle();
-	bool createSharedTexture(int w, int h, int textureID) { return m_pD3DPresentEngine->createSharedTexture(w, h, textureID); }
+	bool createSharedTexture(int w, int h, int textureID) { return m_pD3DPresentEngine->createSharedTexture(w,h, textureID ); }
+    unsigned char* getPixels() {return m_pD3DPresentEngine->getPixels();};
 	bool lockSharedTexture() { return m_pD3DPresentEngine->lockSharedTexture(); }
 	bool unlockSharedTexture() { return m_pD3DPresentEngine->unlockSharedTexture(); }
 	void releaseSharedTexture() { return m_pD3DPresentEngine->releaseSharedTexture(); };

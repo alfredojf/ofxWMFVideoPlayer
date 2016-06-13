@@ -1,5 +1,6 @@
 //ofxWMFVideoPlayer addon written by Philippe Laulheret for Second Story (secondstory.com)
 //MIT Licensing
+// Portions Copyright (c) Microsoft Open Technologies, Inc. 
 
 #include "ofxWMFVideoPlayerUtils.h"
 #include "ofxWMFVideoPlayer.h"
@@ -22,26 +23,32 @@ ofxWMFVideoPlayer* findPlayers(HWND hwnd)
 
 int  ofxWMFVideoPlayer::_instanceCount = 0;
 
-ofxWMFVideoPlayer::ofxWMFVideoPlayer() : _player(NULL)
+ofxWMFVideoPlayer::ofxWMFVideoPlayer() 
+    : _player(NULL)
+    , hasNVidiaExtensions(false)
 {
+	
+	if (_instanceCount ==0)  {
+		if (!ofIsGLProgrammableRenderer()){
 
-	if (_instanceCount == 0) {
-		if (!ofIsGLProgrammableRenderer()) {
-			if (wglewIsSupported("WGL_NV_DX_interop")) {
+            hasNVidiaExtensions = (wglewIsSupported("WGL_NV_DX_interop") == GL_TRUE);
+
+#ifdef NO_NV_EXTENSIONS
+            hasNVidiaExtensions = false;
+#endif
+
+			if(hasNVidiaExtensions){
 				ofLogVerbose("ofxWMFVideoPlayer") << "WGL_NV_DX_interop supported";
-			}
-			else {
-				ofLogError("ofxWMFVideoPlayer") << "WGL_NV_DX_interop not supported. Upgrade your graphc drivers and try again.";
-				return;
+			}else{
+				ofLogWarning("ofxWMFVideoPlayer") << "WGL_NV_DX_interop not supported. Using CPU copy to OpenGL texture.";
 			}
 		}
-
 
 		HRESULT hr = MFStartup(MF_VERSION);
-		if (!SUCCEEDED(hr))
-		{
-			ofLog(OF_LOG_ERROR, "ofxWMFVideoPlayer: Error while loading MF");
-		}
+	    if (!SUCCEEDED(hr))
+        {
+		    ofLog(OF_LOG_ERROR, "ofxWMFVideoPlayer: Error while loading MF");
+        }
 	}
 
 	_id = _instanceCount;
