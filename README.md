@@ -17,3 +17,14 @@ Since openFrameworks 9.0+, there is no need to upgrade the GLEW library!
 
 On top of that this addon is built against the Direct X SDK of June 2010. At the time of writing, you can download it on the [Microsoft website](http://www.microsoft.com/en-us/download/details.aspx?id=6812)
 For running, the only needed library is the latest production version of Direct X 9!
+
+##Troubleshooting
+
+In some instance we have noticed that the video appears "washed out". If you are noticing this it is due to a NVIDIA card setting that sets colors to a limited range of 16-235. You can fix this by doing the following:
+
+* Open the nVidia Control Panel
+* Adjust Video Color Settings
+* Make Color Adjustments
+* With nVidia Settings
+* Select Advanced Tab
+* Set Dynamic Range to: Full (0-255)
