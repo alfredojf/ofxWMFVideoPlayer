@@ -8,7 +8,7 @@
 
 #include "ofMain.h"
 #include "ofxWMFVideoPlayerUtils.h"
-#include "EVRPresenter.h"
+#include "presenter/EVRPresenter.h"
 
 class CPlayer;
 class ofxWMFVideoPlayer : public ofBaseVideoPlayer {
@@ -122,6 +122,8 @@ private:
 
 	int _width;
 	int _height;
+
+	bool hasNVidiaExtensions;
 
 	bool _waitingForLoad;
 	bool _waitForLoadedToPlay;

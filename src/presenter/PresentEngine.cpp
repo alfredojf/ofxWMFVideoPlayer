@@ -120,10 +120,6 @@ bool D3DPresentEngine::createSharedTexture(int w, int h, int textureID)
     {
         hr = m_pDevice->CreateTexture(w,h,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&d3d_texture,NULL);
     }
-
-
-	HRESULT hr = m_pDevice->CreateTexture(w, h, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &d3d_shared_texture, &sharedHandle);
-
 	if (FAILED(hr))
 	{
 		printf("ofxWMFVideoplayer : Error creating D3DTexture\n");
@@ -775,7 +771,9 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
 
         if(!m_offscreenSurface)
         {
-            if( FAILED(hr) )
+			hr = m_pDevice->CreateOffscreenPlainSurface(rtDesc.Width, rtDesc.Height, rtDesc.Format, D3DPOOL_SYSTEMMEM, &m_offscreenSurface, NULL);
+
+			if( FAILED(hr) )
                 return hr;
         }
 
@@ -829,18 +827,12 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
         }
     }  
 
+	LOG_MSG_IF_FAILED(L"D3DPresentEngine::PresentSwapChain, IDirect3DSwapChain9::Present failed.", hr);
+
     if (m_hwnd == NULL)
     {
         return MF_E_INVALIDREQUEST;
     }
-	
-            hr = m_pDevice->CreateOffscreenPlainSurface( rtDesc.Width, rtDesc.Height, rtDesc.Format, D3DPOOL_SYSTEMMEM, &m_offscreenSurface, NULL );
-
-
-
-
-	LOG_MSG_IF_FAILED(L"D3DPresentEngine::PresentSwapChain, IDirect3DSwapChain9::Present failed.", hr);
-
 
 	return hr;
 }

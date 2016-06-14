@@ -186,10 +186,18 @@ bool ofxWMFVideoPlayer::endLoad() {
 
 void ofxWMFVideoPlayer::draw(int x, int y, int w, int h) {
 
-	_player->m_pEVRPresenter->lockSharedTexture();
-	_tex.draw(x, y, w, h);
-	_player->m_pEVRPresenter->unlockSharedTexture();
-
+	if (hasNVidiaExtensions)
+	{
+		_player->m_pEVRPresenter->lockSharedTexture();
+		_tex.draw(x, y, w, h);
+		_player->m_pEVRPresenter->unlockSharedTexture();
+	}
+	else
+	{
+		unsigned char* pixels = _player->m_pEVRPresenter->getPixels();
+		_tex.loadData(pixels, _player->getWidth(), _player->getHeight(), GL_RGBA);
+		_tex.draw(x, y, w, h);
+	}
 }
 
 void	ofxWMFVideoPlayer::close() {
