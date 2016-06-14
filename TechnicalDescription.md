@@ -1,7 +1,9 @@
+> Note: this document is kept for historical purposes only! Not updated.
+
 ofxWMFVideoPlayer
 =================
 
-ofxWMFVideoPlayer is an addon for openFrameworks that uses the Windows Media Foundation (WMF) API to read videos. 
+ofxWMFVideoPlayer is an addon for openFrameworks that uses the Windows Media Foundation (WMF) API to read videos.
 It's an interesting videoplayback solution as it uses Windows H264 decoder (therefore avoiding any patent issue for using third party decoder) and was developed with hardware acceleration in mind.
 
 ##Purpose of this document
@@ -18,16 +20,16 @@ Microsoft is kind enough to deliver their SDK with samples, so instead of having
 
 ##The quest for hardware acceleration
 
-Reading a H264 video on a powerful machine is most of the time not a problem. But when your machine is not that powerful (like if you are using a tiny computer that are meant to be a media platform to plug on your tv) or when you want to play a couple of Ultra-HD videos smoothly, this is a totally different matter. 
+Reading a H264 video on a powerful machine is most of the time not a problem. But when your machine is not that powerful (like if you are using a tiny computer that are meant to be a media platform to plug on your tv) or when you want to play a couple of Ultra-HD videos smoothly, this is a totally different matter.
 The way players in openFrameworks usually works is CPU intensive : they use a third party library (quicktime, gstreamer, vlc) which are usually decoding the video on the CPU side and then returns a gigantic array of pixels, that in turn must be uploaded back to the graphic card. This is highly inefficient as most of the hard work can (and should) be done on the graphic card.
 When you think about it, it's not that often that you actually need to access the pixel values of a video on the CPU side; most of the time if you need anything it's more the texture of the video on which you could apply some shader transform.
 
 ###First try : using an overlapped window
-Our first shot at playing accelerated video was dead simple. For the specific problem we had in mind, nothing more than blending in and out the video was needed. As a consequence, instead of trying to solve the hard problem of hardware acceleration within openGL, we just created a D3D frameless window in that we would hide and show using Windows API. Then we would create a regular video player using the SDK sample, and overlap the whole thing when needed. We won't give much more details about this solution as it's globally unsatisfactory but if ever the need arise to overlap a second window on top of oF, here's the code used to alpha blend it : 
+Our first shot at playing accelerated video was dead simple. For the specific problem we had in mind, nothing more than blending in and out the video was needed. As a consequence, instead of trying to solve the hard problem of hardware acceleration within openGL, we just created a D3D frameless window in that we would hide and show using Windows API. Then we would create a regular video player using the SDK sample, and overlap the whole thing when needed. We won't give much more details about this solution as it's globally unsatisfactory but if ever the need arise to overlap a second window on top of oF, here's the code used to alpha blend it :
 
 ````
 void ofxWMFVideoPlayer::    setTransparency(float alpha) {
-    
+
 	if (alpha == 255) {
 		if (!_isTranparencyEnabled) return;
 		_isTranparencyEnabled = false;
@@ -40,14 +42,14 @@ void ofxWMFVideoPlayer::    setTransparency(float alpha) {
 
 	if (!_isTranparencyEnabled) {
 		_isTranparencyEnabled = true;
-		// Set WS_EX_LAYERED on this window 
+		// Set WS_EX_LAYERED on this window
 		SetWindowLong(_hwndPlayer, GWL_EXSTYLE,
         GetWindowLong(_hwndPlayer, GWL_EXSTYLE) | WS_EX_LAYERED);
 	}
 	SetLayeredWindowAttributes(_hwndPlayer, 0, alpha, LWA_ALPHA);
 	return;
 }
-```` 
+````
 
 ###The graal of HW acceleration : WGL_NV_DX_interop
 
@@ -96,13 +98,13 @@ HRESULT D3DPresentEngine::PresentSwapChain(IDirect3DSwapChain9* pSwapChain, IDir
 		printf("ofxWMFVideoPlayer: Error while copying texture to gl context \n");
 	}
 	SAFE_RELEASE(surface);
-	
+
 <...>
 }
 
 ````
 
-This might not be the most optimized approach (as we are still presenting the texture to the D3D surface) but this solution was already performing much better than the other solution available we had and so we limited the scope of our work to this approach. 
+This might not be the most optimized approach (as we are still presenting the texture to the D3D surface) but this solution was already performing much better than the other solution available we had and so we limited the scope of our work to this approach.
 
 #### Note on using WGL_NV_DX_interop
 
@@ -111,7 +113,7 @@ Internally to Direct3D9 you can create a shared handle to a ressouce while creat
 
 ###Bonus (experimental) feature : playing multiple video in sync
 
-We faced an unexpected issue while working on the project for which we developed the video player : Some videos we wanted to play had an unusual format (3840x1080  and on windows 7 can only decode 1920x1080 H264 video), so we tried to split the video in two, and Framesync them. If you Google "windows media foundation multiple source" you can land on the page of the Sequencer Source, with which  "You can use it to create playlists, or to play streams from multiple sources simultaneously." The latter seemed perfect for us, but unfortunately is (apparently) never explained. 
+We faced an unexpected issue while working on the project for which we developed the video player : Some videos we wanted to play had an unusual format (3840x1080  and on windows 7 can only decode 1920x1080 H264 video), so we tried to split the video in two, and Framesync them. If you Google "windows media foundation multiple source" you can land on the page of the Sequencer Source, with which  "You can use it to create playlists, or to play streams from multiple sources simultaneously." The latter seemed perfect for us, but unfortunately is (apparently) never explained.
 The surprising fact is if you add two media source inside Topoedit, and ask it to resolve the Topology, it will do it successfully. It's because the software is actually using the sequencer source to do the work.
 
 The idea here is roughly : you create your fancy topology with all the sources you want, feed it into the Source Sequencer, ask the Source Sequencer to give you back an amended topology, and voila!
@@ -130,9 +132,9 @@ The idea here is roughly : you create your fancy topology with all the sources y
 
 ````
 
-The media session will make sure then that your videos don't get (too much) out of sync. Unfortunately it's not a perfect frame sync, and because of different compression of the videos, little delay in the processing... once in a while you'll notice the two videos are one or two frames off (even if later on they catch up again). 
+The media session will make sure then that your videos don't get (too much) out of sync. Unfortunately it's not a perfect frame sync, and because of different compression of the videos, little delay in the processing... once in a while you'll notice the two videos are one or two frames off (even if later on they catch up again).
 
-A solution to that problem was to swtich to WMV which offer a better range of format (windows 7 can decode up to Ultra-HD wmv files). 
+A solution to that problem was to swtich to WMV which offer a better range of format (windows 7 can decode up to Ultra-HD wmv files).
 
 Apparently another option would be to use the `MFCreateAggregateSource` to aggregate multiple sources. Might be handy the time you need to run a 8K video.
 
@@ -141,19 +143,4 @@ Apparently another option would be to use the `MFCreateAggregateSource` to aggre
 ##What's next?
 
 At the moment of writing there are still pending issues with using the interop extension on various hardware. To be able to support more graphic cards / setups, implementing a CPU-side pipeline would be a good fallback.
-The [Sample grabber sink](http://msdn.microsoft.com/en-us/library/windows/desktop/hh184779(v=vs.85).aspx) is a  good candidate for this solution. However you need to remember that using this sink will break the acceleration chain and as a consequence, will be more CPU-intensive than the current implementation. However it's no worse than other approach using quicktime, gstreamer, vlc,... 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+The [Sample grabber sink](http://msdn.microsoft.com/en-us/library/windows/desktop/hh184779(v=vs.85).aspx) is a  good candidate for this solution. However you need to remember that using this sink will break the acceleration chain and as a consequence, will be more CPU-intensive than the current implementation. However it's no worse than other approach using quicktime, gstreamer, vlc,...
