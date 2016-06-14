@@ -204,19 +204,19 @@ namespace MediaFoundationSamples
 		}
 	};
 
-	// RefCountedObject
-	// You can use this when implementing IUnknown or any object that uses reference counting.
-	class RefCountedObject
-	{
-	protected:
-		volatile long   m_refCount;
+    // RefCountedObject
+    // You can use this when implementing IUnknown or any object that uses reference counting.
+    class RefCountedObject_
+    {
+    protected:
+        volatile long   m_refCount;
 
-	public:
-		RefCountedObject() : m_refCount(1) {}
-		virtual ~RefCountedObject()
-		{
-			assert(m_refCount == 0);
-		}
+    public:
+        RefCountedObject_() : m_refCount(1) {}
+        virtual ~RefCountedObject_()
+        {
+            assert(m_refCount == 0);
+        }
 
 		ULONG AddRef()
 		{

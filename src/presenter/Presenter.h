@@ -72,7 +72,7 @@ enum FRAMESTEP_STATE
 
 class EVRCustomPresenter : 
     BaseObject,  
-    RefCountedObject, 
+    RefCountedObject_, 
     // COM interfaces:
     public IMFVideoDeviceID,
     public IMFVideoPresenter, // Inherits IMFClockStateSink
