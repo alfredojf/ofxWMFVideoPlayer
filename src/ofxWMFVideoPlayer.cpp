@@ -1,6 +1,6 @@
 //ofxWMFVideoPlayer addon written by Philippe Laulheret for Second Story (secondstory.com)
 //MIT Licensing
-// Portions Copyright (c) Microsoft Open Technologies, Inc. 
+// Portions Copyright (c) Microsoft Open Technologies, Inc.
 
 #include "ofxWMFVideoPlayerUtils.h"
 #include "ofxWMFVideoPlayer.h"
@@ -23,11 +23,11 @@ ofxWMFVideoPlayer* findPlayers(HWND hwnd)
 
 int  ofxWMFVideoPlayer::_instanceCount = 0;
 
-ofxWMFVideoPlayer::ofxWMFVideoPlayer() 
+ofxWMFVideoPlayer::ofxWMFVideoPlayer()
     : _player(NULL)
     , hasNVidiaExtensions(false)
 {
-	
+
 	if (_instanceCount ==0)  {
 		if (!ofIsGLProgrammableRenderer()){
 
@@ -200,6 +200,22 @@ void ofxWMFVideoPlayer::draw(int x, int y, int w, int h) {
 	}
 }
 
+void ofxWMFVideoPlayer::drawSubsection(float x, float y, float w, float h, float sx, float sy, float sw, float sh) {
+
+	if (hasNVidiaExtensions)
+	{
+		_player->m_pEVRPresenter->lockSharedTexture();
+		_tex.drawSubsection(x, y, w, h, sx, sy, sw, sh);
+		_player->m_pEVRPresenter->unlockSharedTexture();
+	}
+	else
+	{
+		unsigned char* pixels = _player->m_pEVRPresenter->getPixels();
+		_tex.loadData(pixels, _player->getWidth(), _player->getHeight(), GL_RGBA);
+		_tex.drawSubsection(x, y, w, h, sx, sy, sw, sh);
+	}
+}
+
 void	ofxWMFVideoPlayer::close() {
 	_player->Shutdown();
 	_currentVolume = 1.0;
@@ -277,7 +293,7 @@ bool ofxWMFVideoPlayer::isFrameNew() const {
 	return true;//TODO fix this
 }
 
-void ofxWMFVideoPlayer::setPaused(bool bPause) 
+void ofxWMFVideoPlayer::setPaused(bool bPause)
 {
 	if (bPause == true)
 		_player->Pause();
@@ -401,15 +417,15 @@ void ofxWMFVideoPlayer::OnPlayerEvent(HWND hwnd, WPARAM pUnkPtr)
 			FORMAT_MESSAGE_FROM_SYSTEM
 			// allocate buffer on local heap for error text
 			| FORMAT_MESSAGE_ALLOCATE_BUFFER
-			// Important! will fail otherwise, since we're not 
+			// Important! will fail otherwise, since we're not
 			// (and CANNOT) pass insertion parameters
 			| FORMAT_MESSAGE_IGNORE_INSERTS,
 			NULL,    // unused with FORMAT_MESSAGE_FROM_SYSTEM
 			hr,
 			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-			(LPTSTR)&errorText,  // output 
+			(LPTSTR)&errorText,  // output
 			0, // minimum size for output buffer
-			NULL);   // arguments - see note 
+			NULL);   // arguments - see note
 		wstring ws = errorText;
 		string error(ws.begin(), ws.end());
 

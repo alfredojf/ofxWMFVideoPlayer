@@ -2,7 +2,7 @@
 //ofxWMFVideoPlayer addon written by Philippe Laulheret for Second Story (secondstory.com)
 //Based upon Windows SDK samples
 //MIT Licensing
-// Portions Copyright (c) Microsoft Open Technologies, Inc. 
+// Portions Copyright (c) Microsoft Open Technologies, Inc.
 
 
 
@@ -71,6 +71,7 @@ public:
 
 	void				draw(int x, int y, int w, int h);
 	void				draw(int x, int y) { draw(x, y, getWidth(), getHeight()); }
+	void				drawSubsection(float x, float y, float w, float h, float sx, float sy, float sw, float sh);
 
 	void                OnPlayerEvent(HWND hwnd, WPARAM pUnkPtr);
 
